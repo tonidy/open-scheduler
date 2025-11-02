@@ -6,7 +6,10 @@ package talk;
 message HeartbeatRequest {
   string node_id = 1;
   int64 timestamp = 2;
-  map<string, string> metadata = 3;
+  float ram_mb = 3;   // Available RAM in MB
+  float cpu_percent = 4; // Available CPU in percent
+  float disk_mb = 5;  // Available Disk in MB
+  map<string, string> metadata = 6;
 }
 
 message HeartbeatResponse {
