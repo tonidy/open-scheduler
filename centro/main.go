@@ -14,7 +14,7 @@ import (
 	"time"
 
 	centrogrpc "github.com/open-scheduler/centro/grpc"
-	// "github.com/open-scheduler/centro/migration"
+	"github.com/open-scheduler/centro/migration"
 	"github.com/open-scheduler/centro/rest"
 	etcdstorage "github.com/open-scheduler/centro/storage/etcd"
 	pb "github.com/open-scheduler/proto"
@@ -89,7 +89,7 @@ func main() {
 
 	go func() {
 		time.Sleep(5 * time.Second)
-		// migration.SeedTestData(centroServer)
+		migration.SeedTestData(centroServer)
 	}()
 
 	go func() {

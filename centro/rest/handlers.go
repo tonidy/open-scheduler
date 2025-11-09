@@ -198,15 +198,33 @@ type SubmitJobRequest struct {
 }
 
 type TaskRequest struct {
-	Name   string            `json:"name"`
-	Driver string            `json:"driver"`
-	Config TaskConfigRequest `json:"config"`
-	Env    map[string]string `json:"env"`
+	Name      string               `json:"name"`
+	Driver    string               `json:"driver"`
+	Kind      string               `json:"kind,omitempty"`
+	Config    ContainerSpecRequest `json:"config"`
+	Env       map[string]string    `json:"env"`
+	Resources *ResourcesRequest    `json:"resources,omitempty"`
+	Volumes   []VolumeRequest      `json:"volumes,omitempty"`
 }
 
-type TaskConfigRequest struct {
+type ResourcesRequest struct {
+	MemoryMB        int64   `json:"memory_mb"`
+	MemoryReserveMB int64   `json:"memory_reserve_mb,omitempty"`
+	CPU             float32 `json:"cpu"`
+	CPUReserve      float32 `json:"cpu_reserve,omitempty"`
+}
+
+type VolumeRequest struct {
+	HostPath      string `json:"host_path"`
+	ContainerPath string `json:"container_path"`
+	ReadOnly      bool   `json:"read_only,omitempty"`
+}
+
+type ContainerSpecRequest struct {
 	Image   string            `json:"image"`
-	Options map[string]string `json:"options"`
+	Command []string          `json:"command,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
 }
 
 // handleSubmitJob godoc
@@ -242,15 +260,42 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 
 	tasks := make([]*pb.Task, 0, len(req.Tasks))
 	for _, t := range req.Tasks {
-		tasks = append(tasks, &pb.Task{
+		task := &pb.Task{
 			Name:   t.Name,
 			Driver: t.Driver,
-			Config: &pb.TaskConfig{
+			Kind:   t.Kind,
+			Config: &pb.ContainerSpec{
 				Image:   t.Config.Image,
+				Command: t.Config.Command,
+				Args:    t.Config.Args,
 				Options: t.Config.Options,
 			},
 			Env: t.Env,
-		})
+		}
+
+		// Add resources if specified
+		if t.Resources != nil {
+			task.Resources = &pb.Resources{
+				MemoryMb:        t.Resources.MemoryMB,
+				MemoryReserveMb: t.Resources.MemoryReserveMB,
+				Cpu:             t.Resources.CPU,
+				CpuReserve:      t.Resources.CPUReserve,
+			}
+		}
+
+		// Add volumes if specified
+		if len(t.Volumes) > 0 {
+			task.Volumes = make([]*pb.Volume, 0, len(t.Volumes))
+			for _, v := range t.Volumes {
+				task.Volumes = append(task.Volumes, &pb.Volume{
+					HostPath:      v.HostPath,
+					ContainerPath: v.ContainerPath,
+					ReadOnly:      v.ReadOnly,
+				})
+			}
+		}
+
+		tasks = append(tasks, task)
 	}
 
 	job := &pb.Job{

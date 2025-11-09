@@ -509,6 +509,32 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "rest.ContainerSpecRequest": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "command": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "image": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "rest.LoginRequest": {
             "type": "object",
             "properties": {
@@ -531,6 +557,23 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "rest.ResourcesRequest": {
+            "type": "object",
+            "properties": {
+                "cpu": {
+                    "type": "number"
+                },
+                "cpu_reserve": {
+                    "type": "number"
+                },
+                "memory_mb": {
+                    "type": "integer"
+                },
+                "memory_reserve_mb": {
+                    "type": "integer"
                 }
             }
         },
@@ -560,25 +603,11 @@ const docTemplate = `{
                 }
             }
         },
-        "rest.TaskConfigRequest": {
-            "type": "object",
-            "properties": {
-                "image": {
-                    "type": "string"
-                },
-                "options": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
         "rest.TaskRequest": {
             "type": "object",
             "properties": {
                 "config": {
-                    "$ref": "#/definitions/rest.TaskConfigRequest"
+                    "$ref": "#/definitions/rest.ContainerSpecRequest"
                 },
                 "driver": {
                     "type": "string"
@@ -591,6 +620,29 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "resources": {
+                    "$ref": "#/definitions/rest.ResourcesRequest"
+                },
+                "volumes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rest.VolumeRequest"
+                    }
+                }
+            }
+        },
+        "rest.VolumeRequest": {
+            "type": "object",
+            "properties": {
+                "container_path": {
+                    "type": "string"
+                },
+                "host_path": {
+                    "type": "string"
+                },
+                "read_only": {
+                    "type": "boolean"
                 }
             }
         }

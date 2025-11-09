@@ -292,8 +292,12 @@ type Task struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Driver        string                 `protobuf:"bytes,2,opt,name=driver,proto3" json:"driver,omitempty"`
-	Config        *TaskConfig            `protobuf:"bytes,3,opt,name=config,proto3" json:"config,omitempty"`
-	Env           map[string]string      `protobuf:"bytes,4,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Exec          string                 `protobuf:"bytes,3,opt,name=exec,proto3" json:"exec,omitempty"`
+	Config        *ContainerSpec         `protobuf:"bytes,4,opt,name=config,proto3" json:"config,omitempty"`
+	Env           map[string]string      `protobuf:"bytes,5,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Resources     *Resources             `protobuf:"bytes,6,opt,name=resources,proto3" json:"resources,omitempty"`
+	Volumes       []*Volume              `protobuf:"bytes,7,rep,name=volumes,proto3" json:"volumes,omitempty"`
+	Kind          string                 `protobuf:"bytes,8,opt,name=kind,proto3" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -342,7 +346,14 @@ func (x *Task) GetDriver() string {
 	return ""
 }
 
-func (x *Task) GetConfig() *TaskConfig {
+func (x *Task) GetExec() string {
+	if x != nil {
+		return x.Exec
+	}
+	return ""
+}
+
+func (x *Task) GetConfig() *ContainerSpec {
 	if x != nil {
 		return x.Config
 	}
@@ -356,28 +367,52 @@ func (x *Task) GetEnv() map[string]string {
 	return nil
 }
 
-type TaskConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Image         string                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
-	Options       map[string]string      `protobuf:"bytes,2,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+func (x *Task) GetResources() *Resources {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
 }
 
-func (x *TaskConfig) Reset() {
-	*x = TaskConfig{}
+func (x *Task) GetVolumes() []*Volume {
+	if x != nil {
+		return x.Volumes
+	}
+	return nil
+}
+
+func (x *Task) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+// Container resource specifications
+type Resources struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	MemoryMb        int64                  `protobuf:"varint,1,opt,name=memory_mb,json=memoryMb,proto3" json:"memory_mb,omitempty"`                        // Memory limit in MB
+	MemoryReserveMb int64                  `protobuf:"varint,2,opt,name=memory_reserve_mb,json=memoryReserveMb,proto3" json:"memory_reserve_mb,omitempty"` // Reserved memory in MB
+	Cpu             float32                `protobuf:"fixed32,3,opt,name=cpu,proto3" json:"cpu,omitempty"`                                                 // CPU limit (e.g., 1.0 = 1 core, 0.5 = half core)
+	CpuReserve      float32                `protobuf:"fixed32,4,opt,name=cpu_reserve,json=cpuReserve,proto3" json:"cpu_reserve,omitempty"`                 // Reserved CPU
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *Resources) Reset() {
+	*x = Resources{}
 	mi := &file_proto_agent_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TaskConfig) String() string {
+func (x *Resources) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TaskConfig) ProtoMessage() {}
+func (*Resources) ProtoMessage() {}
 
-func (x *TaskConfig) ProtoReflect() protoreflect.Message {
+func (x *Resources) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_agent_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -389,19 +424,163 @@ func (x *TaskConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TaskConfig.ProtoReflect.Descriptor instead.
-func (*TaskConfig) Descriptor() ([]byte, []int) {
+// Deprecated: Use Resources.ProtoReflect.Descriptor instead.
+func (*Resources) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *TaskConfig) GetImage() string {
+func (x *Resources) GetMemoryMb() int64 {
+	if x != nil {
+		return x.MemoryMb
+	}
+	return 0
+}
+
+func (x *Resources) GetMemoryReserveMb() int64 {
+	if x != nil {
+		return x.MemoryReserveMb
+	}
+	return 0
+}
+
+func (x *Resources) GetCpu() float32 {
+	if x != nil {
+		return x.Cpu
+	}
+	return 0
+}
+
+func (x *Resources) GetCpuReserve() float32 {
+	if x != nil {
+		return x.CpuReserve
+	}
+	return 0
+}
+
+// Volume mount specification
+type Volume struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	HostPath      string                 `protobuf:"bytes,1,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`                // Path on the host
+	ContainerPath string                 `protobuf:"bytes,2,opt,name=container_path,json=containerPath,proto3" json:"container_path,omitempty"` // Path inside the container
+	ReadOnly      bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`               // Whether the volume is read-only
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Volume) Reset() {
+	*x = Volume{}
+	mi := &file_proto_agent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Volume) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Volume) ProtoMessage() {}
+
+func (x *Volume) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Volume.ProtoReflect.Descriptor instead.
+func (*Volume) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Volume) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
+func (x *Volume) GetContainerPath() string {
+	if x != nil {
+		return x.ContainerPath
+	}
+	return ""
+}
+
+func (x *Volume) GetReadOnly() bool {
+	if x != nil {
+		return x.ReadOnly
+	}
+	return false
+}
+
+// Container specification
+type ContainerSpec struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Image         string                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
+	Command       []string               `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"` // Command to run in the container
+	Args          []string               `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`       // Arguments for the command
+	Options       map[string]string      `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContainerSpec) Reset() {
+	*x = ContainerSpec{}
+	mi := &file_proto_agent_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContainerSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerSpec) ProtoMessage() {}
+
+func (x *ContainerSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerSpec.ProtoReflect.Descriptor instead.
+func (*ContainerSpec) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ContainerSpec) GetImage() string {
 	if x != nil {
 		return x.Image
 	}
 	return ""
 }
 
-func (x *TaskConfig) GetOptions() map[string]string {
+func (x *ContainerSpec) GetCommand() []string {
+	if x != nil {
+		return x.Command
+	}
+	return nil
+}
+
+func (x *ContainerSpec) GetArgs() []string {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
+func (x *ContainerSpec) GetOptions() map[string]string {
 	if x != nil {
 		return x.Options
 	}
@@ -419,7 +598,7 @@ type GetJobResponse struct {
 
 func (x *GetJobResponse) Reset() {
 	*x = GetJobResponse{}
-	mi := &file_proto_agent_proto_msgTypes[6]
+	mi := &file_proto_agent_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -431,7 +610,7 @@ func (x *GetJobResponse) String() string {
 func (*GetJobResponse) ProtoMessage() {}
 
 func (x *GetJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[6]
+	mi := &file_proto_agent_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -444,7 +623,7 @@ func (x *GetJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetJobResponse.ProtoReflect.Descriptor instead.
 func (*GetJobResponse) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{6}
+	return file_proto_agent_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetJobResponse) GetHasJob() bool {
@@ -482,7 +661,7 @@ type UpdateStatusRequest struct {
 
 func (x *UpdateStatusRequest) Reset() {
 	*x = UpdateStatusRequest{}
-	mi := &file_proto_agent_proto_msgTypes[7]
+	mi := &file_proto_agent_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -494,7 +673,7 @@ func (x *UpdateStatusRequest) String() string {
 func (*UpdateStatusRequest) ProtoMessage() {}
 
 func (x *UpdateStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[7]
+	mi := &file_proto_agent_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -507,7 +686,7 @@ func (x *UpdateStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateStatusRequest.ProtoReflect.Descriptor instead.
 func (*UpdateStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{7}
+	return file_proto_agent_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UpdateStatusRequest) GetNodeId() string {
@@ -555,7 +734,7 @@ type UpdateStatusResponse struct {
 
 func (x *UpdateStatusResponse) Reset() {
 	*x = UpdateStatusResponse{}
-	mi := &file_proto_agent_proto_msgTypes[8]
+	mi := &file_proto_agent_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -567,7 +746,7 @@ func (x *UpdateStatusResponse) String() string {
 func (*UpdateStatusResponse) ProtoMessage() {}
 
 func (x *UpdateStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[8]
+	mi := &file_proto_agent_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -580,7 +759,7 @@ func (x *UpdateStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateStatusResponse.ProtoReflect.Descriptor instead.
 func (*UpdateStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{8}
+	return file_proto_agent_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdateStatusResponse) GetOk() bool {
@@ -608,7 +787,7 @@ type ClaimJobRequest struct {
 
 func (x *ClaimJobRequest) Reset() {
 	*x = ClaimJobRequest{}
-	mi := &file_proto_agent_proto_msgTypes[9]
+	mi := &file_proto_agent_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -620,7 +799,7 @@ func (x *ClaimJobRequest) String() string {
 func (*ClaimJobRequest) ProtoMessage() {}
 
 func (x *ClaimJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[9]
+	mi := &file_proto_agent_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -633,7 +812,7 @@ func (x *ClaimJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimJobRequest.ProtoReflect.Descriptor instead.
 func (*ClaimJobRequest) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{9}
+	return file_proto_agent_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ClaimJobRequest) GetNodeId() string {
@@ -660,7 +839,7 @@ type ClaimJobResponse struct {
 
 func (x *ClaimJobResponse) Reset() {
 	*x = ClaimJobResponse{}
-	mi := &file_proto_agent_proto_msgTypes[10]
+	mi := &file_proto_agent_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -672,7 +851,7 @@ func (x *ClaimJobResponse) String() string {
 func (*ClaimJobResponse) ProtoMessage() {}
 
 func (x *ClaimJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[10]
+	mi := &file_proto_agent_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -685,7 +864,7 @@ func (x *ClaimJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimJobResponse.ProtoReflect.Descriptor instead.
 func (*ClaimJobResponse) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{10}
+	return file_proto_agent_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ClaimJobResponse) GetOk() bool {
@@ -733,19 +912,34 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\x04meta\x18\x06 \x03(\v2\x13.talk.Job.MetaEntryR\x04meta\x1a7\n" +
 	"\tMetaEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbb\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbd\x02\n" +
 	"\x04Task\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
-	"\x06driver\x18\x02 \x01(\tR\x06driver\x12(\n" +
-	"\x06config\x18\x03 \x01(\v2\x10.talk.TaskConfigR\x06config\x12%\n" +
-	"\x03env\x18\x04 \x03(\v2\x13.talk.Task.EnvEntryR\x03env\x1a6\n" +
+	"\x06driver\x18\x02 \x01(\tR\x06driver\x12\x12\n" +
+	"\x04exec\x18\x03 \x01(\tR\x04exec\x12+\n" +
+	"\x06config\x18\x04 \x01(\v2\x13.talk.ContainerSpecR\x06config\x12%\n" +
+	"\x03env\x18\x05 \x03(\v2\x13.talk.Task.EnvEntryR\x03env\x12-\n" +
+	"\tresources\x18\x06 \x01(\v2\x0f.talk.ResourcesR\tresources\x12&\n" +
+	"\avolumes\x18\a \x03(\v2\f.talk.VolumeR\avolumes\x12\x12\n" +
+	"\x04kind\x18\b \x01(\tR\x04kind\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x97\x01\n" +
-	"\n" +
-	"TaskConfig\x12\x14\n" +
-	"\x05image\x18\x01 \x01(\tR\x05image\x127\n" +
-	"\aoptions\x18\x02 \x03(\v2\x1d.talk.TaskConfig.OptionsEntryR\aoptions\x1a:\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x87\x01\n" +
+	"\tResources\x12\x1b\n" +
+	"\tmemory_mb\x18\x01 \x01(\x03R\bmemoryMb\x12*\n" +
+	"\x11memory_reserve_mb\x18\x02 \x01(\x03R\x0fmemoryReserveMb\x12\x10\n" +
+	"\x03cpu\x18\x03 \x01(\x02R\x03cpu\x12\x1f\n" +
+	"\vcpu_reserve\x18\x04 \x01(\x02R\n" +
+	"cpuReserve\"i\n" +
+	"\x06Volume\x12\x1b\n" +
+	"\thost_path\x18\x01 \x01(\tR\bhostPath\x12%\n" +
+	"\x0econtainer_path\x18\x02 \x01(\tR\rcontainerPath\x12\x1b\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\xcb\x01\n" +
+	"\rContainerSpec\x12\x14\n" +
+	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
+	"\acommand\x18\x02 \x03(\tR\acommand\x12\x12\n" +
+	"\x04args\x18\x03 \x03(\tR\x04args\x12:\n" +
+	"\aoptions\x18\x04 \x03(\v2 .talk.ContainerSpec.OptionsEntryR\aoptions\x1a:\n" +
 	"\fOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"`\n" +
@@ -786,45 +980,49 @@ func file_proto_agent_proto_rawDescGZIP() []byte {
 	return file_proto_agent_proto_rawDescData
 }
 
-var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_proto_agent_proto_goTypes = []any{
 	(*HeartbeatRequest)(nil),     // 0: talk.HeartbeatRequest
 	(*HeartbeatResponse)(nil),    // 1: talk.HeartbeatResponse
 	(*GetJobRequest)(nil),        // 2: talk.GetJobRequest
 	(*Job)(nil),                  // 3: talk.Job
 	(*Task)(nil),                 // 4: talk.Task
-	(*TaskConfig)(nil),           // 5: talk.TaskConfig
-	(*GetJobResponse)(nil),       // 6: talk.GetJobResponse
-	(*UpdateStatusRequest)(nil),  // 7: talk.UpdateStatusRequest
-	(*UpdateStatusResponse)(nil), // 8: talk.UpdateStatusResponse
-	(*ClaimJobRequest)(nil),      // 9: talk.ClaimJobRequest
-	(*ClaimJobResponse)(nil),     // 10: talk.ClaimJobResponse
-	nil,                          // 11: talk.HeartbeatRequest.MetadataEntry
-	nil,                          // 12: talk.Job.MetaEntry
-	nil,                          // 13: talk.Task.EnvEntry
-	nil,                          // 14: talk.TaskConfig.OptionsEntry
+	(*Resources)(nil),            // 5: talk.Resources
+	(*Volume)(nil),               // 6: talk.Volume
+	(*ContainerSpec)(nil),        // 7: talk.ContainerSpec
+	(*GetJobResponse)(nil),       // 8: talk.GetJobResponse
+	(*UpdateStatusRequest)(nil),  // 9: talk.UpdateStatusRequest
+	(*UpdateStatusResponse)(nil), // 10: talk.UpdateStatusResponse
+	(*ClaimJobRequest)(nil),      // 11: talk.ClaimJobRequest
+	(*ClaimJobResponse)(nil),     // 12: talk.ClaimJobResponse
+	nil,                          // 13: talk.HeartbeatRequest.MetadataEntry
+	nil,                          // 14: talk.Job.MetaEntry
+	nil,                          // 15: talk.Task.EnvEntry
+	nil,                          // 16: talk.ContainerSpec.OptionsEntry
 }
 var file_proto_agent_proto_depIdxs = []int32{
-	11, // 0: talk.HeartbeatRequest.metadata:type_name -> talk.HeartbeatRequest.MetadataEntry
+	13, // 0: talk.HeartbeatRequest.metadata:type_name -> talk.HeartbeatRequest.MetadataEntry
 	4,  // 1: talk.Job.tasks:type_name -> talk.Task
-	12, // 2: talk.Job.meta:type_name -> talk.Job.MetaEntry
-	5,  // 3: talk.Task.config:type_name -> talk.TaskConfig
-	13, // 4: talk.Task.env:type_name -> talk.Task.EnvEntry
-	14, // 5: talk.TaskConfig.options:type_name -> talk.TaskConfig.OptionsEntry
-	3,  // 6: talk.GetJobResponse.job:type_name -> talk.Job
-	0,  // 7: talk.NodeAgentService.Heartbeat:input_type -> talk.HeartbeatRequest
-	2,  // 8: talk.NodeAgentService.GetJob:input_type -> talk.GetJobRequest
-	9,  // 9: talk.NodeAgentService.ClaimJob:input_type -> talk.ClaimJobRequest
-	7,  // 10: talk.NodeAgentService.UpdateStatus:input_type -> talk.UpdateStatusRequest
-	1,  // 11: talk.NodeAgentService.Heartbeat:output_type -> talk.HeartbeatResponse
-	6,  // 12: talk.NodeAgentService.GetJob:output_type -> talk.GetJobResponse
-	10, // 13: talk.NodeAgentService.ClaimJob:output_type -> talk.ClaimJobResponse
-	8,  // 14: talk.NodeAgentService.UpdateStatus:output_type -> talk.UpdateStatusResponse
-	11, // [11:15] is the sub-list for method output_type
-	7,  // [7:11] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	14, // 2: talk.Job.meta:type_name -> talk.Job.MetaEntry
+	7,  // 3: talk.Task.config:type_name -> talk.ContainerSpec
+	15, // 4: talk.Task.env:type_name -> talk.Task.EnvEntry
+	5,  // 5: talk.Task.resources:type_name -> talk.Resources
+	6,  // 6: talk.Task.volumes:type_name -> talk.Volume
+	16, // 7: talk.ContainerSpec.options:type_name -> talk.ContainerSpec.OptionsEntry
+	3,  // 8: talk.GetJobResponse.job:type_name -> talk.Job
+	0,  // 9: talk.NodeAgentService.Heartbeat:input_type -> talk.HeartbeatRequest
+	2,  // 10: talk.NodeAgentService.GetJob:input_type -> talk.GetJobRequest
+	11, // 11: talk.NodeAgentService.ClaimJob:input_type -> talk.ClaimJobRequest
+	9,  // 12: talk.NodeAgentService.UpdateStatus:input_type -> talk.UpdateStatusRequest
+	1,  // 13: talk.NodeAgentService.Heartbeat:output_type -> talk.HeartbeatResponse
+	8,  // 14: talk.NodeAgentService.GetJob:output_type -> talk.GetJobResponse
+	12, // 15: talk.NodeAgentService.ClaimJob:output_type -> talk.ClaimJobResponse
+	10, // 16: talk.NodeAgentService.UpdateStatus:output_type -> talk.UpdateStatusResponse
+	13, // [13:17] is the sub-list for method output_type
+	9,  // [9:13] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_proto_agent_proto_init() }
@@ -838,7 +1036,7 @@ func file_proto_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_agent_proto_rawDesc), len(file_proto_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

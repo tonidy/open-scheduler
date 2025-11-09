@@ -1,5 +1,22 @@
 basePath: /api/v1
 definitions:
+  rest.ContainerSpecRequest:
+    properties:
+      args:
+        items:
+          type: string
+        type: array
+      command:
+        items:
+          type: string
+        type: array
+      image:
+        type: string
+      options:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
   rest.LoginRequest:
     properties:
       password:
@@ -15,6 +32,17 @@ definitions:
         type: string
       username:
         type: string
+    type: object
+  rest.ResourcesRequest:
+    properties:
+      cpu:
+        type: number
+      cpu_reserve:
+        type: number
+      memory_mb:
+        type: integer
+      memory_reserve_mb:
+        type: integer
     type: object
   rest.SubmitJobRequest:
     properties:
@@ -33,19 +61,10 @@ definitions:
       type:
         type: string
     type: object
-  rest.TaskConfigRequest:
-    properties:
-      image:
-        type: string
-      options:
-        additionalProperties:
-          type: string
-        type: object
-    type: object
   rest.TaskRequest:
     properties:
       config:
-        $ref: '#/definitions/rest.TaskConfigRequest'
+        $ref: '#/definitions/rest.ContainerSpecRequest'
       driver:
         type: string
       env:
@@ -54,6 +73,21 @@ definitions:
         type: object
       name:
         type: string
+      resources:
+        $ref: '#/definitions/rest.ResourcesRequest'
+      volumes:
+        items:
+          $ref: '#/definitions/rest.VolumeRequest'
+        type: array
+    type: object
+  rest.VolumeRequest:
+    properties:
+      container_path:
+        type: string
+      host_path:
+        type: string
+      read_only:
+        type: boolean
     type: object
 host: localhost:8080
 info:

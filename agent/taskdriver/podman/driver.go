@@ -14,6 +14,7 @@ import (
 	"github.com/containers/podman/v4/pkg/bindings/images"
 	"github.com/containers/podman/v4/pkg/specgen"
 	pb "github.com/open-scheduler/proto"
+	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 type PodmanConnection struct {
@@ -105,10 +106,12 @@ func (d *PodmanDriver) Run(ctx context.Context, task *pb.Task) error {
 	if err != nil {
 		return fmt.Errorf("failed to pull image %s: %w", task.Config.Image, err)
 	}
-	err = d.createContainer(ctx, task.Config.Image)
+
+	err = d.createContainer(ctx, task)
 	if err != nil {
 		return fmt.Errorf("failed to create container %s: %w", task.Config.Image, err)
 	}
+
 	return nil
 }
 
@@ -121,90 +124,105 @@ func (d *PodmanDriver) pullImage(ctx context.Context, image string) error {
 	return nil
 }
 
-func (d *PodmanDriver) createContainer(ctx context.Context, image string) error {
-
-	s := specgen.NewSpecGenerator(image, false)
+func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error {
+	s := specgen.NewSpecGenerator(task.Config.Image, false)
 	s.Terminal = true
 
+	// Set command and args if specified
+	if len(task.Config.Command) > 0 {
+		s.Command = task.Config.Command
+	}
+	if len(task.Config.Args) > 0 {
+		s.Command = append(s.Command, task.Config.Args...)
+	}
+	// Set environment variables
+	if len(task.Env) > 0 {
+		envVars := make(map[string]string)
+		for k, v := range task.Env {
+			envVars[k] = v
+		}
+		s.Env = envVars
+	}
+
+	// Set resource limits
+	if task.Resources != nil {
+		// Memory limits (convert MB to bytes)
+		if task.Resources.MemoryMb > 0 {
+			memoryLimit := task.Resources.MemoryMb * 1024 * 1024
+			s.ResourceLimits = &spec.LinuxResources{}
+			s.ResourceLimits.Memory = &spec.LinuxMemory{
+				Limit: &memoryLimit,
+			}
+			// Set memory reservation if specified
+			if task.Resources.MemoryReserveMb > 0 {
+				memoryReserve := task.Resources.MemoryReserveMb * 1024 * 1024
+				s.ResourceLimits.Memory.Reservation = &memoryReserve
+			}
+		}
+
+		// CPU limits
+		if task.Resources.Cpu > 0 {
+			if s.ResourceLimits == nil {
+				s.ResourceLimits = &spec.LinuxResources{}
+			}
+			// Convert CPU float to quota/period
+			// Default period is 100000 microseconds (0.1s)
+			period := uint64(100000)
+			quota := int64(task.Resources.Cpu * float32(period))
+			s.ResourceLimits.CPU = &spec.LinuxCPU{
+				Quota:  &quota,
+				Period: &period,
+			}
+		}
+	}
+
+	// Set volume mounts
+	if len(task.Volumes) > 0 {
+		mounts := make([]spec.Mount, 0, len(task.Volumes))
+		for _, vol := range task.Volumes {
+			mountType := "bind"
+			mountOpts := []string{"rbind"}
+			if vol.ReadOnly {
+				mountOpts = append(mountOpts, "ro")
+			} else {
+				mountOpts = append(mountOpts, "rw")
+			}
+
+			mounts = append(mounts, spec.Mount{
+				Type:        mountType,
+				Source:      vol.HostPath,
+				Destination: vol.ContainerPath,
+				Options:     mountOpts,
+			})
+		}
+		s.Mounts = mounts
+	}
+
+	// Create container with spec
+	log.Printf("[PodmanDriver] Creating container with image: %s", task.Config.Image)
 	r, err := containers.CreateWithSpec(d.ctx, s, &containers.CreateOptions{})
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create container: %w", err)
 	}
 
 	// Container start
-	fmt.Println("Starting container...")
+	log.Printf("[PodmanDriver] Starting container: %s", r.ID)
 	err = containers.Start(d.ctx, r.ID, nil)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return fmt.Errorf("failed to start container: %w", err)
 	}
 
+	// Wait for container to be running
+	log.Printf("[PodmanDriver] Waiting for container to be running: %s", r.ID)
 	_, err = containers.Wait(d.ctx, r.ID, &containers.WaitOptions{
 		Condition: []define.ContainerStatus{define.ContainerStateRunning},
 	})
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return fmt.Errorf("container wait failed: %w", err)
 	}
 
+	log.Printf("[PodmanDriver] Container is running: %s", r.ID)
 	return nil
-}
-
-// LogOptions configures log retrieval behavior for Podman
-type LogOptions struct {
-	Follow     bool   // Stream logs continuously
-	Tail       string // Get last N lines (e.g., "100")
-	Since      string // RFC3339 timestamp or relative (e.g., "1h")
-	Until      string // RFC3339 timestamp
-	Timestamps bool   // Include timestamps in output
-	Stdout     bool   // Include stdout
-	Stderr     bool   // Include stderr
-}
-
-// GetLogs retrieves container logs with specified options
-// Returns two channels for stdout and stderr streams
-func (d *PodmanDriver) GetLogs(ctx context.Context, containerID string, opts *LogOptions) (stdout, stderr chan string, err error) {
-	// Create buffered channels for efficient streaming
-	stdoutChan := make(chan string, 1000)
-	stderrChan := make(chan string, 1000)
-
-	// Build log options
-	logOpts := &containers.LogOptions{
-		Follow:     &opts.Follow,
-		Timestamps: &opts.Timestamps,
-		Stdout:     &opts.Stdout,
-		Stderr:     &opts.Stderr,
-	}
-
-	// Set tail if specified
-	if opts.Tail != "" {
-		tail := opts.Tail
-		logOpts.Tail = &tail
-	}
-
-	// Set time range if specified
-	if opts.Since != "" {
-		since := opts.Since
-		logOpts.Since = &since
-	}
-	if opts.Until != "" {
-		until := opts.Until
-		logOpts.Until = &until
-	}
-
-	// Start log streaming in a goroutine
-	go func() {
-		defer close(stdoutChan)
-		defer close(stderrChan)
-
-		err := containers.Logs(d.ctx, containerID, logOpts, stdoutChan, stderrChan)
-		if err != nil {
-			log.Printf("[PodmanDriver] Error streaming logs for container %s: %v", containerID, err)
-		}
-	}()
-
-	return stdoutChan, stderrChan, nil
 }
 
 // StopContainer stops a running container

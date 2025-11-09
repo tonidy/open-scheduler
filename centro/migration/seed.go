@@ -20,7 +20,8 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 			{
 				Name:   "test-task",
 				Driver: "podman",
-				Config: &pb.TaskConfig{
+				Kind:   "container",
+				Config: &pb.ContainerSpec{
 					Image: "docker.io/library/alpine:latest",
 					Options: map[string]string{
 						"command": "echo 'Hello from test job!'",
@@ -46,7 +47,7 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 			{
 				Name:   "test-task-2",
 				Driver: "podman",
-				Config: &pb.TaskConfig{
+				Config: &pb.ContainerSpec{
 					Image: "docker.io/library/ubuntu:latest",
 					Options: map[string]string{
 						"command": "echo 'Hello from test job 2!'",
