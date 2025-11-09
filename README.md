@@ -18,6 +18,7 @@ Pattern Control Plane x Data Plane
 
 - Simple Scheduler
 - Provisioning with incus
+- **Persistent storage using etcd** - See [ETCD_SETUP.md](ETCD_SETUP.md) for details
 
 # Control Plane x Data Plane
 

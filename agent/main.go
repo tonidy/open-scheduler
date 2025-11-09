@@ -2,28 +2,58 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/google/uuid"
 	"github.com/open-scheduler/agent/commands"
+	sharedgrpc "github.com/open-scheduler/agent/grpc"
 )
 
-var intervalSeconds = 15
-
 func main() {
-	log.Println("Starting NodeAgent...")
-	log.Println("Interval seconds:", intervalSeconds)
-	intervalEnv := os.Getenv("INTERVAL_SECONDS")
-	if intervalEnv != "" {
-		val, _ := strconv.Atoi(intervalEnv)
-		intervalSeconds = val
+	serverFlag := flag.String("server", "", "Centro server address (overrides CENTRO_SERVER_ADDR env var)")
+	tokenFlag := flag.String("token", "", "Authentication token (overrides TOKEN env var)")
+	flag.Parse()
+
+	log.Println("Starting NodeAgent...")	
+
+	serverAddr := *serverFlag
+	if serverAddr == "" {
+		serverAddr = os.Getenv("CENTRO_SERVER_ADDR")
 	}
+	if serverAddr == "" {
+		log.Fatalf("Server address not provided. Use --server flag or set CENTRO_SERVER_ADDR environment variable")
+	}
+
+	token := *tokenFlag
+	if token == "" {
+		token = os.Getenv("TOKEN")
+	}
+	if token == "" {
+		log.Fatalf("Token not provided. Use --token flag or set TOKEN environment variable")
+	}
+
+	grpcClient, err := sharedgrpc.NewSharedClient(serverAddr)
+	if err != nil {
+		log.Fatalf("Failed to create gRPC client: %v", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	if err := grpcClient.Connect(ctx); err != nil {
+		log.Fatalf("Failed to connect to gRPC server: %v", err)
+	}
+	defer func() {
+		if err := grpcClient.Close(); err != nil {
+			log.Printf("Error closing gRPC client: %v", err)
+		}
+	}()
+
+	log.Println("Successfully connected to Centro server")
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -40,14 +70,11 @@ func main() {
 	if nodeID == "" {
 		nodeID = uuid.New().String()
 	}
-	token := os.Getenv("TOKEN")
-	if token == "" {
-		log.Fatalf("TOKEN is not set")
-	}
 	executor.SetToken(token, nodeID)
-	executor.Register(commands.NewHeartbeatCommand())
-	executor.Register(commands.NewGetJobCommand())
-	executor.Register(commands.NewUpdateStatusCommand())
+	
+	// Register commands
+	executor.Register(commands.NewHeartbeatCommand(grpcClient))
+	executor.Register(commands.NewGetJobCommand(grpcClient))
 
 	executor.StartScheduler(ctx)
 

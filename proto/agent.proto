@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package talk;
 
+option go_package = "github.com/open-scheduler/proto";
+
 // Heartbeat message sent from NodeAgent to ControlPlane
 message HeartbeatRequest {
   string node_id = 1;
@@ -29,15 +31,8 @@ message Job {
   string type = 3;
   string datacenters = 4; // comma-separated, for simplicity
 
-  repeated TaskGroup task_groups = 5;
+  repeated Task tasks = 5;
   map<string, string> meta = 6;
-}
-
-message TaskGroup {
-  string name = 1;
-  int32 count = 2;
-
-  repeated Task tasks = 3;
 }
 
 message Task {
@@ -48,8 +43,8 @@ message Task {
 }
 
 message TaskConfig {
-  // Key-value config for the task driver, for generality
-  map<string, string> options = 1;
+  string image = 1;
+  map<string, string> options = 2;
 }
 
 message GetJobResponse {
@@ -72,12 +67,26 @@ message UpdateStatusResponse {
   string message = 2;
 }
 
+// Request to claim a job from the ControlPlane
+message ClaimJobRequest {
+  string node_id = 1;
+  string job_id = 2;
+}
+
+message ClaimJobResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
 service NodeAgentService {
   // NodeAgent sends a heartbeat to ControlPlane
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 
   // NodeAgent requests a job from ControlPlane
   rpc GetJob(GetJobRequest) returns (GetJobResponse);
+
+  // NodeAgent claims a job before executing it
+  rpc ClaimJob(ClaimJobRequest) returns (ClaimJobResponse);
 
   // NodeAgent sends job status update
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse);
