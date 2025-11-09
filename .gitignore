@@ -13,9 +13,10 @@ centro/centro_server
 
 agent/agent_client.log
 centro/centro_server.log
-default.etcd/*
+centro/default.etcd/*
 agent_client
 centro_server
+
 
 # Output of the go coverage tool
 *.out
