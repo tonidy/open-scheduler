@@ -8,9 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/google/uuid"
 	"github.com/open-scheduler/agent/commands"
-	sharedgrpc "github.com/open-scheduler/agent/grpc"
+	agentgrpc "github.com/open-scheduler/agent/grpc"
 )
 
 func main() {
@@ -18,7 +17,7 @@ func main() {
 	tokenFlag := flag.String("token", "", "Authentication token (overrides TOKEN env var)")
 	flag.Parse()
 
-	log.Println("Starting NodeAgent...")	
+	log.Println("Starting NodeAgent...")
 
 	serverAddr := *serverFlag
 	if serverAddr == "" {
@@ -36,7 +35,16 @@ func main() {
 		log.Fatalf("Token not provided. Use --token flag or set TOKEN environment variable")
 	}
 
-	grpcClient, err := sharedgrpc.NewSharedClient(serverAddr)
+	nodeID := os.Getenv("NODE_ID")
+	if nodeID == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			log.Fatalf("Failed to get machine hostname: %v", err)
+		}
+		nodeID = hostname
+	}
+
+	grpcClient, err := agentgrpc.NewSharedClient(serverAddr)
 	if err != nil {
 		log.Fatalf("Failed to create gRPC client: %v", err)
 	}
@@ -65,20 +73,15 @@ func main() {
 	}()
 
 	executor := NewCommandExecutor()
-
-	nodeID := os.Getenv("NODE_ID")
-	if nodeID == "" {
-		nodeID = uuid.New().String()
-	}
 	executor.SetToken(token, nodeID)
-	
+
 	// Register commands
 	executor.Register(commands.NewHeartbeatCommand(grpcClient))
 	executor.Register(commands.NewGetJobCommand(grpcClient))
 
 	executor.StartScheduler(ctx)
 
-	log.Println("NodeAgent initialized with command pattern boilerplate")
+	log.Println("NodeAgent initialized with command pattern")
 	log.Println("Press Ctrl+C to exit")
 
 	<-ctx.Done()

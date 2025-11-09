@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	nodesPrefix       = "/centro/nodes/"
-	jobQueuePrefix    = "/centro/jobs/queue/"
-	jobActivePrefix   = "/centro/jobs/active/"
-	jobHistoryPrefix  = "/centro/jobs/history/"
+	nodesPrefix      = "/centro/nodes/"
+	jobQueuePrefix   = "/centro/jobs/queue/"
+	jobActivePrefix  = "/centro/jobs/active/"
+	jobHistoryPrefix = "/centro/jobs/history/"
+	jobEventsPrefix  = "/centro/jobs/events/"
 )
 
 type Storage struct {
@@ -30,6 +31,10 @@ type NodeInfo struct {
 	CPUPercent    float32           `json:"cpu_percent"`
 	DiskMB        float32           `json:"disk_mb"`
 	Metadata      map[string]string `json:"metadata"`
+}
+
+func (n *NodeInfo) IsHealthy() bool {
+	return time.Since(n.LastHeartbeat) < 60*time.Second
 }
 
 type JobStatus struct {
@@ -254,3 +259,65 @@ func (s *Storage) GetActiveJobCount(ctx context.Context) (int, error) {
 	return int(resp.Count), nil
 }
 
+func (s *Storage) GetAllJobHistory(ctx context.Context) (map[string]*JobStatus, error) {
+	resp, err := s.client.Get(ctx, jobHistoryPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get job history: %w", err)
+	}
+
+	jobs := make(map[string]*JobStatus)
+	for _, kv := range resp.Kvs {
+		var status JobStatus
+		if err := json.Unmarshal(kv.Value, &status); err != nil {
+			log.Printf("Failed to unmarshal job history: %v", err)
+			continue
+		}
+		jobID := strings.TrimPrefix(string(kv.Key), jobHistoryPrefix)
+		jobs[jobID] = &status
+	}
+
+	return jobs, nil
+}
+
+func (s *Storage) GetJobHistory(ctx context.Context, jobID string) (*JobStatus, error) {
+	key := jobHistoryPrefix + jobID
+	resp, err := s.client.Get(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get job history: %w", err)
+	}
+
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+
+	var status JobStatus
+	if err := json.Unmarshal(resp.Kvs[0].Value, &status); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job history: %w", err)
+	}
+
+	return &status, nil
+}
+
+func (s *Storage) SaveJobEvent(ctx context.Context, jobID string, event string) error {
+	key := fmt.Sprintf("%s%s/%d", jobEventsPrefix, jobID, time.Now().UnixNano())
+	_, err := s.client.Put(ctx, key, event)
+	if err != nil {
+		return fmt.Errorf("failed to save job event: %w", err)
+	}
+	return nil
+}
+
+func (s *Storage) GetJobEvents(ctx context.Context, jobID string) ([]string, error) {
+	prefix := jobEventsPrefix + jobID + "/"
+	resp, err := s.client.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get job events: %w", err)
+	}
+
+	events := make([]string, 0, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		events = append(events, string(kv.Value))
+	}
+
+	return events, nil
+}

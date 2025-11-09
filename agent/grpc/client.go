@@ -85,8 +85,6 @@ func (c *SharedClient) SendHeartbeat(ctx context.Context, nodeID string, token s
 		Metadata:   meta,
 	}
 
-	log.Printf("[SharedClient] Sending heartbeat for node %s", nodeID)
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -117,8 +115,6 @@ func (c *SharedClient) GetJob(ctx context.Context, nodeID string, token string) 
 	req := &pb.GetJobRequest{
 		NodeId: nodeID,
 	}
-
-	log.Printf("[SharedClient] Requesting job for node %s", nodeID)
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -188,8 +184,6 @@ func (c *SharedClient) UpdateStatus(ctx context.Context, nodeID string, token st
 		Detail:    detail,
 		Timestamp: timestamp,
 	}
-
-	log.Printf("[SharedClient] Updating status for job %s on node %s: %s", jobID, nodeID, status)
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

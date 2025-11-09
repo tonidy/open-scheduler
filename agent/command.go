@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+
 	"github.com/robfig/cron/v3"
 )
 
@@ -59,11 +60,11 @@ func (ce *CommandExecutor) GetCommands() []Command {
 func (ce *CommandExecutor) StartScheduler(ctx context.Context) {
 	c := cron.New()
 	for _, cmd := range ce.commands {
-		interval := cmd.IntervalSeconds()		
+		interval := cmd.IntervalSeconds()
 		schedule := fmt.Sprintf("@every %ds", interval)
 		cmdCopy := cmd
 		c.AddFunc(schedule, func() {
-			if err := cmdCopy.Execute(ctx, ce.token, ce.nodeID); err != nil {
+			if err := cmdCopy.Execute(ctx, ce.nodeID, ce.token); err != nil {
 				log.Printf("Error executing command %s: %v", cmdCopy.Name(), err)
 			}
 		})

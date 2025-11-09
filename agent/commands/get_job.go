@@ -2,18 +2,17 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"log"
 
-	sharedgrpc "github.com/open-scheduler/agent/grpc"
+	agentgrpc "github.com/open-scheduler/agent/grpc"
 	"github.com/open-scheduler/agent/service/job"
 )
 
-type GetJobCommand struct {		
-	service *job.GetJobService	
+type GetJobCommand struct {
+	service *job.GetJobService
 }
 
-func NewGetJobCommand(grpcClient *sharedgrpc.SharedClient) *GetJobCommand {
+func NewGetJobCommand(grpcClient *agentgrpc.SharedClient) *GetJobCommand {
 	service, err := job.NewGetJobService(grpcClient)
 	if err != nil {
 		log.Fatalf("[GetJobCommand] Failed to create service: %v", err)
@@ -23,8 +22,7 @@ func NewGetJobCommand(grpcClient *sharedgrpc.SharedClient) *GetJobCommand {
 	}
 }
 
-func (g *GetJobCommand) Execute(ctx context.Context, nodeID string, token string) error {	
-	log.Printf("[GetJobCommand] Executing GetJob for node: %s", nodeID)
+func (g *GetJobCommand) Execute(ctx context.Context, nodeID string, token string) error {
 	return g.service.Execute(ctx, nodeID, token)
 }
 
@@ -33,7 +31,7 @@ func (g *GetJobCommand) Name() string {
 }
 
 func (g *GetJobCommand) String() string {
-	return fmt.Sprintf("GetJobCommand")
+	return "GetJobCommand"
 }
 
 func (g *GetJobCommand) IntervalSeconds() int {

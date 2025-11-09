@@ -2,10 +2,9 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"log"
 
-	sharedgrpc "github.com/open-scheduler/agent/grpc"
+	agentgrpc "github.com/open-scheduler/agent/grpc"
 	"github.com/open-scheduler/agent/service/heartbeat"
 )
 
@@ -13,13 +12,13 @@ type HeartbeatCommand struct {
 	service *heartbeat.HeartbeatService
 }
 
-func NewHeartbeatCommand(grpcClient *sharedgrpc.SharedClient) *HeartbeatCommand {
+func NewHeartbeatCommand(grpcClient *agentgrpc.SharedClient) *HeartbeatCommand {
 	service, err := heartbeat.NewHeartbeatService(grpcClient)
 	if err != nil {
 		log.Fatalf("[HeartbeatCommand] Failed to create service: %v", err)
 	}
 	return &HeartbeatCommand{
-		service: service,	
+		service: service,
 	}
 }
 
@@ -29,7 +28,6 @@ func (h *HeartbeatCommand) Execute(ctx context.Context, nodeID string, token str
 		return nil
 	}
 
-	log.Printf("[HeartbeatCommand] Executing heartbeat for node: %s", nodeID)
 	return h.service.Execute(ctx, nodeID, token)
 }
 
@@ -38,7 +36,7 @@ func (h *HeartbeatCommand) Name() string {
 }
 
 func (h *HeartbeatCommand) String() string {
-	return fmt.Sprintf("HeartbeatCommand")
+	return "HeartbeatCommand"
 }
 
 func (h *HeartbeatCommand) IntervalSeconds() int {

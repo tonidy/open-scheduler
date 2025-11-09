@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,15 +14,40 @@ import (
 	"time"
 
 	centrogrpc "github.com/open-scheduler/centro/grpc"
-	"github.com/open-scheduler/centro/migration"
+	// "github.com/open-scheduler/centro/migration"
+	"github.com/open-scheduler/centro/rest"
 	etcdstorage "github.com/open-scheduler/centro/storage/etcd"
 	pb "github.com/open-scheduler/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	_ "github.com/open-scheduler/docs" // This line is needed for Swagger
 )
+
+// @title Open Scheduler API
+// @version 1.0
+// @description A distributed job scheduler REST API for managing jobs and nodes
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.open-scheduler.io/support
+// @contact.email support@open-scheduler.io
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:8080
+// @BasePath /api/v1
+// @schemes http https
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Enter your JWT token in the format: Bearer {token}
 
 func main() {
 	port := flag.String("port", "50051", "The gRPC server port")
+	httpPort := flag.String("http-port", "8080", "The REST API server port")
 	etcdEndpoints := flag.String("etcd-endpoints", "localhost:2379", "Comma-separated list of etcd endpoints")
 	flag.Parse()
 
@@ -53,9 +80,16 @@ func main() {
 
 	reflection.Register(grpcServer)
 
+	apiServer := rest.NewAPIServer(storage)
+	httpAddress := fmt.Sprintf(":%s", *httpPort)
+	httpServer := &http.Server{
+		Addr:    httpAddress,
+		Handler: apiServer.GetRouter(),
+	}
+
 	go func() {
 		time.Sleep(5 * time.Second)
-		migration.SeedTestData(centroServer)
+		// migration.SeedTestData(centroServer)
 	}()
 
 	go func() {
@@ -75,16 +109,31 @@ func main() {
 
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Fatalf("Failed to serve gRPC: %v", err)
 		}
 	}()
 
-	log.Printf("[Centro] Server is ready and listening on %s", address)
+	go func() {
+		log.Printf("[Centro] Starting REST API server on %s", httpAddress)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to serve REST API: %v", err)
+		}
+	}()
+
+	log.Printf("[Centro] gRPC server is ready and listening on %s", address)
+	log.Printf("[Centro] REST API server is ready and listening on %s", httpAddress)
 	log.Println("[Centro] Press Ctrl+C to stop")
 
 	<-sigChan
 	log.Println("\n[Centro] Shutting down gracefully...")
 
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("[Centro] HTTP server shutdown error: %v", err)
+	}
+
 	grpcServer.GracefulStop()
-	log.Println("[Centro] Server stopped")
+	log.Println("[Centro] Servers stopped")
 }

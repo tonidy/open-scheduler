@@ -1,0 +1,390 @@
+basePath: /api/v1
+definitions:
+  rest.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  rest.LoginResponse:
+    properties:
+      expires_in:
+        type: integer
+      token:
+        type: string
+      username:
+        type: string
+    type: object
+  rest.SubmitJobRequest:
+    properties:
+      datacenters:
+        type: string
+      meta:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      tasks:
+        items:
+          $ref: '#/definitions/rest.TaskRequest'
+        type: array
+      type:
+        type: string
+    type: object
+  rest.TaskConfigRequest:
+    properties:
+      image:
+        type: string
+      options:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  rest.TaskRequest:
+    properties:
+      config:
+        $ref: '#/definitions/rest.TaskConfigRequest'
+      driver:
+        type: string
+      env:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@open-scheduler.io
+    name: API Support
+    url: http://www.open-scheduler.io/support
+  description: A distributed job scheduler REST API for managing jobs and nodes
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Open Scheduler API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with username and password to receive a JWT token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/rest.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login to get JWT token
+      tags:
+      - Authentication
+  /jobs:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all jobs with optional status filter
+      parameters:
+      - description: Filter by status (queued, active, completed)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all jobs
+      tags:
+      - Jobs
+    post:
+      consumes:
+      - application/json
+      description: Create and submit a new job to the scheduler
+      parameters:
+      - description: Job details
+        in: body
+        name: job
+        required: true
+        schema:
+          $ref: '#/definitions/rest.SubmitJobRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Submit a new job
+      tags:
+      - Jobs
+  /jobs/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific job
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get job details
+      tags:
+      - Jobs
+  /jobs/{id}/events:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve events for a specific job
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get job events
+      tags:
+      - Jobs
+  /jobs/{id}/status:
+    get:
+      consumes:
+      - application/json
+      description: Get the current status of a specific job
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get job status
+      tags:
+      - Jobs
+  /nodes:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all registered nodes in the cluster
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all nodes
+      tags:
+      - Nodes
+  /nodes/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific node
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get node details
+      tags:
+      - Nodes
+  /nodes/{id}/health:
+    get:
+      consumes:
+      - application/json
+      description: Check the health status of a specific node
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Check node health
+      tags:
+      - Nodes
+  /stats:
+    get:
+      consumes:
+      - application/json
+      description: Get overall system statistics including node and job counts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get system statistics
+      tags:
+      - Statistics
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: 'Enter your JWT token in the format: Bearer {token}'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -134,6 +134,22 @@ func (s *CentroServer) GetJob(ctx context.Context, req *pb.GetJobRequest) (*pb.G
 
 	log.Printf("[Centro] Assigning job %s to node %s", job.JobId, req.NodeId)
 
+	jobStatus := &etcdstorage.JobStatus{
+		Job:       job,
+		NodeID:    req.NodeId,
+		Status:    "assigned",
+		ClaimedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.storage.SaveJobActive(ctx, job.JobId, jobStatus); err != nil {
+		log.Printf("[Centro] Failed to save job assignment: %v", err)
+	}
+
+	if err := s.storage.SaveJobEvent(ctx, job.JobId, fmt.Sprintf("[%s] Job assigned to node %s", time.Now().Format(time.RFC3339), req.NodeId)); err != nil {
+		log.Printf("[Centro] Failed to save job event: %v", err)
+	}
+
 	return &pb.GetJobResponse{
 		HasJob:  true,
 		Job:     job,
@@ -178,7 +194,14 @@ func (s *CentroServer) ClaimJob(ctx context.Context, req *pb.ClaimJobRequest) (*
 		}, nil
 	}
 
+	job, _ := s.storage.GetJobActive(ctx, req.JobId)
+	var jobData *pb.Job
+	if job != nil {
+		jobData = job.Job
+	}
+
 	jobStatus := &etcdstorage.JobStatus{
+		Job:       jobData,
 		NodeID:    req.NodeId,
 		Status:    "claimed",
 		ClaimedAt: time.Now(),
@@ -227,13 +250,18 @@ func (s *CentroServer) UpdateStatus(ctx context.Context, req *pb.UpdateStatusReq
 
 	if jobStatus == nil {
 		jobStatus = &etcdstorage.JobStatus{
-			NodeID: req.NodeId,
+			NodeID:    req.NodeId,
+			ClaimedAt: time.Now(),
 		}
 	}
 
 	jobStatus.Status = req.Status
 	jobStatus.Detail = req.Detail
 	jobStatus.UpdatedAt = time.Now()
+
+	if err := s.storage.SaveJobEvent(ctx, req.JobId, fmt.Sprintf("[%s] Status: %s - %s", time.Now().Format(time.RFC3339), req.Status, req.Detail)); err != nil {
+		log.Printf("[Centro] Failed to save job event: %v", err)
+	}
 
 	log.Printf("[Centro] Job %s status update from node %s: %s - %s",
 		req.JobId, req.NodeId, req.Status, req.Detail)

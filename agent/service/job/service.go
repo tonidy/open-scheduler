@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
-	sharedgrpc "github.com/open-scheduler/agent/grpc"
+	agentgrpc "github.com/open-scheduler/agent/grpc"
+	"github.com/open-scheduler/agent/taskdriver"
 	pb "github.com/open-scheduler/proto"
 )
 
 type GetJobService struct {
-	grpcClient *sharedgrpc.SharedClient
+	grpcClient *agentgrpc.SharedClient
 }
 
-func NewGetJobService(grpcClient *sharedgrpc.SharedClient) (*GetJobService, error) {
+func NewGetJobService(grpcClient *agentgrpc.SharedClient) (*GetJobService, error) {
 	if grpcClient == nil {
 		return nil, fmt.Errorf("gRPC client cannot be nil")
 	}
@@ -60,8 +62,32 @@ func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID strin
 		return fmt.Errorf("failed to claim job: %w", err)
 	}
 
-	// TODO: Execute the job tasks
-	log.Printf("[GetJobService] Job handling not yet implemented")
+	for _, task := range job.Tasks {
+		driver, err := taskdriver.NewDriver(task.Driver)
+		if err != nil {
+			// Report failure to Centro
+			s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Failed to create driver: %v", err))
+			return fmt.Errorf("failed to create driver for task %s: %w", task.Name, err)
+		}
+
+		log.Printf("[GetJobService] Running task: %s with driver: %s", task.Name, task.Driver)
+
+		// Update status to running
+		s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running task: %s", task.Name))
+
+		err = driver.Run(ctx, task)
+		if err != nil {
+			// Report failure to Centro
+			s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Task %s failed: %v", task.Name, err))
+			return fmt.Errorf("failed to run task %s: %w", task.Name, err)
+		}
+		log.Printf("[GetJobService] Task %s completed successfully", task.Name)
+	}
+
+	// Report completion to Centro
+	if err := s.updateJobStatus(ctx, job.JobId, nodeID, token, "completed", "All tasks completed successfully"); err != nil {
+		log.Printf("[GetJobService] Warning: Failed to update job status: %v", err)
+	}
 
 	return nil
 }
@@ -80,5 +106,22 @@ func (s *GetJobService) claimJob(ctx context.Context, jobID string, nodeID strin
 
 	log.Printf("[GetJobService] Claimed job: %s", resp.Message)
 
+	return nil
+}
+
+func (s *GetJobService) updateJobStatus(ctx context.Context, jobID string, nodeID string, token string, status string, detail string) error {
+	log.Printf("[GetJobService] Updating job %s status to: %s", jobID, status)
+
+	timestamp := time.Now().Unix()
+	resp, err := s.grpcClient.UpdateStatus(ctx, nodeID, token, jobID, status, detail, timestamp)
+	if err != nil {
+		return fmt.Errorf("UpdateStatus failed: %w", err)
+	}
+
+	if !resp.Ok {
+		return fmt.Errorf("UpdateStatus failed: %s", resp.Message)
+	}
+
+	log.Printf("[GetJobService] Status updated: %s", resp.Message)
 	return nil
 }

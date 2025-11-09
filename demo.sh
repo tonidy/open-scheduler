@@ -1,6 +1,11 @@
 #!/bin/bash
 
 set -e
+# export XDG_RUNTIME_DIR="unix:///run/user/501"
+echo "==> Cleaning etcd job and node data..."
+etcdctl --endpoints=localhost:2379 del --prefix "/centro/" || {
+    echo " [!] Failed to clean etcd. Is etcd running and etcdctl installed?"
+}
 
 echo "==> Building Centro server..."
 go build -o centro_server ./centro
