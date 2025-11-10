@@ -3,14 +3,19 @@ definitions:
   rest.ContainerSpecRequest:
     properties:
       args:
+        example:
+        - ""
         items:
           type: string
         type: array
       command:
+        example:
+        - ""
         items:
           type: string
         type: array
       image:
+        example: docker.io/library/alpine:latest
         type: string
       options:
         additionalProperties:
@@ -20,8 +25,10 @@ definitions:
   rest.LoginRequest:
     properties:
       password:
+        example: admin123
         type: string
       username:
+        example: admin
         type: string
     type: object
   rest.LoginResponse:
@@ -36,42 +43,57 @@ definitions:
   rest.ResourcesRequest:
     properties:
       cpu:
+        example: 1
         type: number
       cpu_reserve:
+        example: 0.5
         type: number
       memory_mb:
+        example: 512
         type: integer
       memory_reserve_mb:
+        example: 256
         type: integer
     type: object
   rest.SubmitJobRequest:
     properties:
       datacenters:
+        example: dc1
         type: string
       meta:
         additionalProperties:
           type: string
         type: object
       name:
+        example: web-server-job
         type: string
       tasks:
         items:
           $ref: '#/definitions/rest.TaskRequest'
         type: array
       type:
+        example: service
         type: string
     type: object
   rest.TaskRequest:
     properties:
-      config:
+      command:
+        example: echo 'Hello World'
+        type: string
+      container_config:
         $ref: '#/definitions/rest.ContainerSpecRequest'
       driver:
+        example: podman
         type: string
       env:
         additionalProperties:
           type: string
         type: object
+      kind:
+        example: container
+        type: string
       name:
+        example: nginx-task
         type: string
       resources:
         $ref: '#/definitions/rest.ResourcesRequest'
@@ -83,10 +105,13 @@ definitions:
   rest.VolumeRequest:
     properties:
       container_path:
+        example: /usr/share/nginx/html
         type: string
       host_path:
+        example: /data/app
         type: string
       read_only:
+        example: false
         type: boolean
     type: object
 host: localhost:8080

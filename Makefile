@@ -43,7 +43,7 @@ build-agent:
 	cd agent && go build -o agent_binary .
 
 # Build all
-build-all: build-centro build-agent
+build-all: clean proto swagger build-centro build-agent
 
 # Test REST API (requires centro to be running)
 test-api:

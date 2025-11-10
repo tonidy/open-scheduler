@@ -61,8 +61,8 @@ func (s *APIServer) GetRouter() *mux.Router {
 }
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username" example:"admin"`
+	Password string `json:"password" example:"admin123"`
 }
 
 type LoginResponse struct {
@@ -191,40 +191,41 @@ func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 type SubmitJobRequest struct {
-	Name        string            `json:"name"`
-	Type        string            `json:"type"`
-	Datacenters string            `json:"datacenters"`
+	Name        string            `json:"name" example:"web-server-job"`
+	Type        string            `json:"type" example:"service"`
+	Datacenters string            `json:"datacenters" example:"dc1"`
 	Tasks       []TaskRequest     `json:"tasks"`
 	Meta        map[string]string `json:"meta"`
 }
 
 type TaskRequest struct {
-	Name      string               `json:"name"`
-	Driver    string               `json:"driver"`
-	Kind      string               `json:"kind,omitempty"`
-	Config    ContainerSpecRequest `json:"config"`
-	Env       map[string]string    `json:"env"`
-	Resources *ResourcesRequest    `json:"resources,omitempty"`
-	Volumes   []VolumeRequest      `json:"volumes,omitempty"`
+	Name            string                `json:"name" example:"nginx-task"`
+	Driver          string                `json:"driver" example:"podman"`
+	Kind            string                `json:"kind,omitempty" example:"container"`
+	Command         string                `json:"command,omitempty" example:"echo 'Hello World'"`
+	ContainerConfig *ContainerSpecRequest `json:"container_config,omitempty"`
+	Env             map[string]string     `json:"env,omitempty"`
+	Resources       *ResourcesRequest     `json:"resources,omitempty"`
+	Volumes         []VolumeRequest       `json:"volumes,omitempty"`
 }
 
 type ResourcesRequest struct {
-	MemoryMB        int64   `json:"memory_mb"`
-	MemoryReserveMB int64   `json:"memory_reserve_mb,omitempty"`
-	CPU             float32 `json:"cpu"`
-	CPUReserve      float32 `json:"cpu_reserve,omitempty"`
+	MemoryMB        int64   `json:"memory_mb" example:"512"`
+	MemoryReserveMB int64   `json:"memory_reserve_mb,omitempty" example:"256"`
+	CPU             float32 `json:"cpu" example:"1.0"`
+	CPUReserve      float32 `json:"cpu_reserve,omitempty" example:"0.5"`
 }
 
 type VolumeRequest struct {
-	HostPath      string `json:"host_path"`
-	ContainerPath string `json:"container_path"`
-	ReadOnly      bool   `json:"read_only,omitempty"`
+	HostPath      string `json:"host_path" example:"/data/app"`
+	ContainerPath string `json:"container_path" example:"/usr/share/nginx/html"`
+	ReadOnly      bool   `json:"read_only,omitempty" example:"false"`
 }
 
 type ContainerSpecRequest struct {
-	Image   string            `json:"image"`
-	Command []string          `json:"command,omitempty"`
-	Args    []string          `json:"args,omitempty"`
+	Image   string            `json:"image" example:"docker.io/library/alpine:latest"`
+	Command []string          `json:"command,omitempty" example:""`
+	Args    []string          `json:"args,omitempty" example:""`
 	Options map[string]string `json:"options,omitempty"`
 }
 
@@ -262,16 +263,21 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 	tasks := make([]*pb.Task, 0, len(req.Tasks))
 	for _, t := range req.Tasks {
 		task := &pb.Task{
-			TaskName:     t.Name,
-			DriverType:   t.Driver,
-			WorkloadType: t.Kind,
-			ContainerConfig: &pb.ContainerSpec{
-				ImageName:     t.Config.Image,
-				Entrypoint:    t.Config.Command,
-				Arguments:     t.Config.Args,
-				DriverOptions: t.Config.Options,
-			},
+			TaskName:             t.Name,
+			DriverType:           t.Driver,
+			WorkloadType:         t.Kind,
+			Command:              t.Command,
 			EnvironmentVariables: t.Env,
+		}
+
+		// Add container config if specified
+		if t.ContainerConfig != nil {
+			task.ContainerConfig = &pb.ContainerSpec{
+				ImageName:     t.ContainerConfig.Image,
+				Entrypoint:    t.ContainerConfig.Command,
+				Arguments:     t.ContainerConfig.Args,
+				DriverOptions: t.ContainerConfig.Options,
+			}
 		}
 
 		// Add resources if specified

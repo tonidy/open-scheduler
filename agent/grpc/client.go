@@ -94,8 +94,7 @@ func (c *GrpcClient) SendHeartbeat(ctx context.Context, nodeID string, token str
 		return nil, fmt.Errorf("heartbeat RPC failed: %w", err)
 	}
 
-	log.Printf("[GrpcClient] Heartbeat response: acknowledged=%v, message=%s", resp.Acknowledged, resp.ResponseMessage)
-
+	// Response logged by HeartbeatService
 	return resp, nil
 }
 
@@ -125,13 +124,7 @@ func (c *GrpcClient) GetJob(ctx context.Context, nodeID string, token string) (*
 		return nil, fmt.Errorf("GetJob RPC failed: %w", err)
 	}
 
-	if resp.JobAvailable {
-		log.Printf("[GrpcClient] Received job: job_id=%s, name=%s, type=%s",
-			resp.Job.JobId, resp.Job.JobName, resp.Job.JobType)
-	} else {
-		log.Printf("[GrpcClient] No job available: %s", resp.ResponseMessage)
-	}
-
+	// Job details logged by GetJobService
 	return resp, nil
 }
 

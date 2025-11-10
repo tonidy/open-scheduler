@@ -15,7 +15,7 @@ import (
 
 	centrogrpc "github.com/open-scheduler/centro/grpc"
 	"github.com/open-scheduler/centro/migration"
-	// "github.com/open-scheduler/centro/scheduler"
+	"github.com/open-scheduler/centro/scheduler"
 	"github.com/open-scheduler/centro/rest"
 	etcdstorage "github.com/open-scheduler/centro/storage/etcd"
 	pb "github.com/open-scheduler/proto"
@@ -88,8 +88,8 @@ func main() {
 		Handler: apiServer.GetRouter(),
 	}
 
-	// queue := scheduler.NewQueue(storage)
-	// go queue.StartScheduler(context.Background())
+	queue := scheduler.NewQueue(storage)
+	go queue.StartScheduler(context.Background())
 
 	go func() {
 		time.Sleep(5 * time.Second)

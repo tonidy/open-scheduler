@@ -516,16 +516,23 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        ""
+                    ]
                 },
                 "command": {
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        ""
+                    ]
                 },
                 "image": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "docker.io/library/alpine:latest"
                 },
                 "options": {
                     "type": "object",
@@ -539,10 +546,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "admin123"
                 },
                 "username": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "admin"
                 }
             }
         },
@@ -564,16 +573,20 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "cpu": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 1
                 },
                 "cpu_reserve": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 0.5
                 },
                 "memory_mb": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 512
                 },
                 "memory_reserve_mb": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 256
                 }
             }
         },
@@ -581,7 +594,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "datacenters": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "dc1"
                 },
                 "meta": {
                     "type": "object",
@@ -590,7 +604,8 @@ const docTemplate = `{
                     }
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "web-server-job"
                 },
                 "tasks": {
                     "type": "array",
@@ -599,18 +614,24 @@ const docTemplate = `{
                     }
                 },
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "service"
                 }
             }
         },
         "rest.TaskRequest": {
             "type": "object",
             "properties": {
-                "config": {
+                "command": {
+                    "type": "string",
+                    "example": "echo 'Hello World'"
+                },
+                "container_config": {
                     "$ref": "#/definitions/rest.ContainerSpecRequest"
                 },
                 "driver": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "podman"
                 },
                 "env": {
                     "type": "object",
@@ -618,8 +639,13 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "kind": {
+                    "type": "string",
+                    "example": "container"
+                },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "nginx-task"
                 },
                 "resources": {
                     "$ref": "#/definitions/rest.ResourcesRequest"
@@ -636,13 +662,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "container_path": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "/usr/share/nginx/html"
                 },
                 "host_path": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "/data/app"
                 },
                 "read_only": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": false
                 }
             }
         }

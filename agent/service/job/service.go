@@ -26,40 +26,24 @@ func NewGetJobService(grpcClient *agentgrpc.GrpcClient) (*GetJobService, error) 
 }
 
 func (s *GetJobService) Execute(ctx context.Context, nodeID string, token string) error {
-	log.Printf("[GetJobService] Requesting job for node: %s", nodeID)
-
 	resp, err := s.grpcClient.GetJob(ctx, nodeID, token)
 	if err != nil {
 		return fmt.Errorf("GetJob failed: %w", err)
 	}
 
 	if resp.JobAvailable {
+		log.Printf("[GetJobService] Received job: %s (%s)", resp.Job.JobName, resp.Job.JobId)
 		if err := s.handleJob(ctx, resp.Job, nodeID, token); err != nil {
 			return fmt.Errorf("failed to handle job: %w", err)
 		}
-	} else {
-		log.Printf("[GetJobService] No job available: %s", resp.ResponseMessage)
 	}
+	// Only log when job is available, silence "no job" messages
 
 	return nil
 }
 
 func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID string, token string) error {
-	log.Printf("[GetJobService] Received job:")
-	log.Printf("  Job ID: %s", job.JobId)
-	log.Printf("  Name: %s", job.JobName)
-	log.Printf("  Type: %s", job.JobType)
-	log.Printf("  Selected Clusters: %v", job.SelectedClusters)
-
-	if len(job.JobMetadata) > 0 {
-		log.Printf("  Metadata:")
-		for k, v := range job.JobMetadata {
-			log.Printf("    %s: %s", k, v)
-		}
-	}
-
-	// Job is already assigned/claimed by GetJob (via dequeue), so we can start executing
-	log.Printf("[GetJobService] Job %s already assigned to this node, starting execution", job.JobId)
+	// Job details already logged in Execute()
 
 	for _, task := range job.Tasks {
 		driver, err := taskdriver.NewDriver(task.DriverType)

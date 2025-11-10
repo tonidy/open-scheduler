@@ -3,9 +3,9 @@ package heartbeat
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"runtime"
+	"strings"
 	"syscall"
 
 	sharedgrpc "github.com/open-scheduler/agent/grpc"
@@ -26,6 +26,49 @@ func NewHeartbeatService(grpcClient *sharedgrpc.GrpcClient) (*HeartbeatService, 
 }
 
 func getAvailableMemoryMB() float64 {
+	// Try to get actual system memory (macOS/BSD)
+	if runtime.GOOS == "darwin" {
+		// Get total physical memory
+		totalBytes, err := syscall.Sysctl("hw.memsize")
+		if err == nil && len(totalBytes) > 0 {
+			// Parse the bytes as uint64
+			var total uint64
+			for i := 0; i < 8 && i < len(totalBytes); i++ {
+				total |= uint64(totalBytes[i]) << (uint(i) * 8)
+			}
+
+			// Get VM statistics for free memory
+			// Note: This is a simplified approach - on macOS, "available" memory
+			// is complex (includes cached, compressed, etc.)
+			// For production, consider using vm_stat or a library like gopsutil
+
+			// For now, we'll use a heuristic: return a reasonable portion of total memory
+			// as "available" since getting exact free memory on macOS requires more complex syscalls
+			totalMB := float64(total) / 1024 / 1024
+
+			// Estimate available as 20% of total (conservative estimate)
+			// In a real system, you'd want to parse vm_stat output or use proper syscalls
+			return totalMB * 0.2
+		}
+	}
+
+	// Fallback for Linux - read /proc/meminfo
+	if runtime.GOOS == "linux" {
+		data, err := os.ReadFile("/proc/meminfo")
+		if err == nil {
+			lines := string(data)
+			// Parse MemAvailable if present (more accurate than MemFree)
+			for _, line := range strings.Split(lines, "\n") {
+				if strings.HasPrefix(line, "MemAvailable:") {
+					var available uint64
+					fmt.Sscanf(line, "MemAvailable: %d kB", &available)
+					return float64(available) / 1024 // Convert KB to MB
+				}
+			}
+		}
+	}
+
+	// Fallback to runtime stats (not accurate for system memory, but better than nothing)
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	totalMemMB := float64(m.Sys) / 1024 / 1024
@@ -55,8 +98,6 @@ func getAvailableDiskMB() float64 {
 }
 
 func (h *HeartbeatService) Execute(ctx context.Context, nodeID string, token string) error {
-	log.Printf("[HeartbeatService] Sending heartbeat for node: %s", nodeID)
-
 	// Get cluster name from environment variable, default to "default"
 	clusterName := os.Getenv("CLUSTER_NAME")
 	if clusterName == "" {
@@ -71,9 +112,6 @@ func (h *HeartbeatService) Execute(ctx context.Context, nodeID string, token str
 	ramAvailable := getAvailableMemoryMB()
 	cpuAvailable := getAvailableCPUCores()
 	diskAvailable := getAvailableDiskMB()
-
-	log.Printf("[HeartbeatService] System metrics - Cluster: %s, RAM: %.2f MB, CPU: %.2f cores, Disk: %.2f MB",
-		clusterName, ramAvailable, cpuAvailable, diskAvailable)
 
 	resp, err := h.grpcClient.SendHeartbeat(
 		ctx,
@@ -94,6 +132,6 @@ func (h *HeartbeatService) Execute(ctx context.Context, nodeID string, token str
 		return fmt.Errorf("heartbeat rejected: %s", resp.ResponseMessage)
 	}
 
-	log.Printf("[HeartbeatService] Heartbeat successful: %s", resp.ResponseMessage)
+	// Only log errors, success is assumed
 	return nil
 }
