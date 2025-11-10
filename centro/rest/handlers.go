@@ -482,10 +482,47 @@ func (s *APIServer) handleGetJobEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Filter out consecutive duplicate events
+	filteredEvents := filterConsecutiveDuplicates(events)
+
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"job_id": jobID,
-		"events": events,
+		"events": filteredEvents,
 	})
+}
+
+// filterConsecutiveDuplicates removes consecutive duplicate events from the list
+func filterConsecutiveDuplicates(events []string) []string {
+	if len(events) == 0 {
+		return events
+	}
+
+	filtered := make([]string, 0, len(events))
+	filtered = append(filtered, events[0])
+
+	for i := 1; i < len(events); i++ {
+		// Extract the message part after the timestamp (everything after "] ")
+		currentMsg := extractEventMessage(events[i])
+		previousMsg := extractEventMessage(events[i-1])
+
+		// Only add if the message is different from the previous one
+		if currentMsg != previousMsg {
+			filtered = append(filtered, events[i])
+		}
+	}
+
+	return filtered
+}
+
+// extractEventMessage extracts the message part from an event string
+// Events format: "[timestamp] message"
+func extractEventMessage(event string) string {
+	// Find the position after the timestamp bracket
+	idx := strings.Index(event, "] ")
+	if idx == -1 {
+		return event
+	}
+	return event[idx+2:]
 }
 
 // handleGetContainerData godoc

@@ -257,6 +257,40 @@ paths:
       summary: Get job details
       tags:
       - Jobs
+  /jobs/{id}/container:
+    get:
+      description: Retrieves the container data associated with a specific job
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get container data for a job
+      tags:
+      - Jobs
   /jobs/{id}/events:
     get:
       consumes:
