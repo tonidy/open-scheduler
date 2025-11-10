@@ -23,7 +23,7 @@ default.etcd/*
 
 # Output of the go coverage tool
 *.out
-
+etcd.log
 # Dependency directories
 vendor/
 

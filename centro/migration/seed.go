@@ -15,7 +15,7 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 		JobId:            "test-job-1",
 		JobName:          "Test Job 1",
 		JobType:          "batch",
-		SelectedClusters: []string{"test"},
+		SelectedClusters: []string{"default"},
 		Tasks: []*pb.Task{
 			{
 				TaskName:     "test-task",
