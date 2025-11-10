@@ -3,8 +3,6 @@ pkill etcd
 nohup etcd --data-dir=default.etcd --listen-client-urls=http://localhost:2379 --advertise-client-urls=http://localhost:2379 > etcd.log 2>&1 &
 podman stop $(podman ps -aq)
 podman rm $(podman ps -aq)
-podman volume rm $(podman volume ls -q)
-podman network rm $(podman network ls -q)
 set -e
 # export XDG_RUNTIME_DIR="unix:///run/user/501"
 echo "==> Cleaning etcd job and node data..."
