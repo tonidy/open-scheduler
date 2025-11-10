@@ -58,7 +58,10 @@ func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID strin
 		// Update status to running
 		s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running task: %s", task.TaskName))
 
-		err = driver.Run(ctx, task)
+		// Create a new context with jobId for container metadata tracking
+		taskCtx := context.WithValue(ctx, "jobId", job.JobId)
+
+		err = driver.Run(taskCtx, task)
 		if err != nil {
 			// Report failure to Centro
 			s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Task %s failed: %v", task.TaskName, err))

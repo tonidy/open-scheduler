@@ -13,6 +13,7 @@ import (
 	"github.com/containers/podman/v4/pkg/bindings/containers"
 	"github.com/containers/podman/v4/pkg/bindings/images"
 	"github.com/containers/podman/v4/pkg/specgen"
+	"github.com/open-scheduler/agent/taskdriver/model"
 	pb "github.com/open-scheduler/proto"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
@@ -135,6 +136,19 @@ func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error
 	if len(task.ContainerConfig.Arguments) > 0 {
 		s.Command = append(s.Command, task.ContainerConfig.Arguments...)
 	}
+
+	// Add labels/metadata for tracking
+	// This allows us to identify and manage containers by jobId
+	labels := make(map[string]string)
+	labels["open-scheduler.managed"] = "true"
+	labels["open-scheduler.task-name"] = task.TaskName
+
+	// Add jobId from parent context if available
+	// The jobId should be passed through the task context
+	if jobID, ok := ctx.Value("jobId").(string); ok && jobID != "" {
+		labels["open-scheduler.job-id"] = jobID
+	}
+	s.Labels = labels
 	// Set environment variables
 	if len(task.EnvironmentVariables) > 0 {
 		envVars := make(map[string]string)
@@ -254,4 +268,89 @@ func (d *PodmanDriver) GetContainerStatus(ctx context.Context, containerID strin
 		return "", fmt.Errorf("failed to get container status for %s: %w", containerID, err)
 	}
 	return inspectData.State.Status, nil
+}
+
+// InspectContainer inspects a container
+func (d *PodmanDriver) InspectContainer(ctx context.Context, containerID string) (model.ContainerInspect, error) {
+	inspectData, err := containers.Inspect(d.ctx, containerID, nil)
+	if err != nil {
+		return model.ContainerInspect{}, fmt.Errorf("failed to inspect container %s: %w", containerID, err)
+	}
+	// Extract volume/mount information
+	volumes := make([]string, 0, len(inspectData.Mounts))
+	for _, mount := range inspectData.Mounts {
+		volumes = append(volumes, mount.Destination)
+	}
+
+	// Extract port information
+	ports := make([]string, 0)
+	if inspectData.NetworkSettings != nil && len(inspectData.NetworkSettings.Ports) > 0 {
+		for port := range inspectData.NetworkSettings.Ports {
+			ports = append(ports, port)
+		}
+	}
+
+	// Extract command from Config
+	command := make([]string, 0)
+	if inspectData.Config != nil {
+		command = inspectData.Config.Cmd
+	}
+
+	// Extract labels from Config
+	labels := make(map[string]string)
+	if inspectData.Config != nil && inspectData.Config.Labels != nil {
+		labels = inspectData.Config.Labels
+	}
+
+	return model.ContainerInspect{
+		ID:         inspectData.ID,
+		Name:       inspectData.Name,
+		Image:      inspectData.Image,
+		ImageName:  inspectData.ImageName,
+		Command:    command,
+		Args:       inspectData.Args,
+		Created:    inspectData.Created.Format("2006-01-02T15:04:05.999999999Z07:00"),
+		StartedAt:  inspectData.State.StartedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
+		FinishedAt: inspectData.State.FinishedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
+		Status:     model.ContainerStatus(inspectData.State.Status),
+		ExitCode:   int(inspectData.State.ExitCode),
+		Pid:        int(inspectData.State.Pid),
+		Labels:     labels,
+		Ports:      ports,
+		Volumes:    volumes,
+	}, nil
+}
+
+// ListContainers lists all containers managed by open-scheduler
+func (d *PodmanDriver) ListContainers(ctx context.Context) ([]model.ContainerInspect, error) {
+	log.Printf("[PodmanDriver] Listing all containers")
+
+	// List all containers (including stopped ones)
+	allContainers := true
+	containerList, err := containers.List(d.ctx, &containers.ListOptions{
+		All: &allContainers,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	result := make([]model.ContainerInspect, 0)
+
+	for _, container := range containerList {
+		// Filter only containers managed by open-scheduler
+		if container.Labels != nil {
+			if managed, ok := container.Labels["open-scheduler.managed"]; ok && managed == "true" {
+				// Get detailed inspect data for this container
+				inspectData, err := d.InspectContainer(ctx, container.ID)
+				if err != nil {
+					log.Printf("[PodmanDriver] Warning: failed to inspect container %s: %v", container.ID, err)
+					continue
+				}
+				result = append(result, inspectData)
+			}
+		}
+	}
+
+	log.Printf("[PodmanDriver] Found %d managed containers", len(result))
+	return result, nil
 }

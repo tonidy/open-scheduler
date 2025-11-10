@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"sync"
 
+	"github.com/open-scheduler/agent/taskdriver/model"
 	pb "github.com/open-scheduler/proto"
 )
 
@@ -96,4 +97,15 @@ func (d *ExecDriver) StopContainer(ctx context.Context, containerID string) erro
 func (d *ExecDriver) GetContainerStatus(ctx context.Context, containerID string) (string, error) {
 	log.Printf("[ExecDriver] GetContainerStatus called for: %s (not implemented)", containerID)
 	return "unknown", nil
+}
+
+func (d *ExecDriver) InspectContainer(ctx context.Context, containerID string) (model.ContainerInspect, error) {
+	log.Printf("[ExecDriver] InspectContainer called for: %s (not implemented)", containerID)
+	return model.ContainerInspect{}, fmt.Errorf("InspectContainer not implemented for exec driver")
+}
+
+// ListContainers lists all containers (not applicable for exec driver)
+func (d *ExecDriver) ListContainers(ctx context.Context) ([]model.ContainerInspect, error) {
+	// Exec driver doesn't manage containers
+	return []model.ContainerInspect{}, nil
 }
