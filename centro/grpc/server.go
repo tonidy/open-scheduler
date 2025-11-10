@@ -458,23 +458,7 @@ func (s *CentroServer) SetContainerData(ctx context.Context, req *pb.SetContaine
 		}, nil
 	}
 
-	// Get the job status to verify it exists
-	jobStatus, err := s.storage.GetJobActive(ctx, req.JobId)
-	if err != nil {
-		log.Printf("[Centro] Failed to get active job: %v", err)
-		return &pb.SetContainerDataResponse{
-			Acknowledged:    false,
-			ResponseMessage: "Failed to get job status",
-		}, nil
-	}
 
-	if jobStatus == nil {
-		log.Printf("[Centro] Job %s not found in active jobs", req.JobId)
-		return &pb.SetContainerDataResponse{
-			Acknowledged:    false,
-			ResponseMessage: "Job not found in active jobs",
-		}, nil
-	}
 
 	// Log container data for monitoring
 	log.Printf("[Centro] Received container data for job %s from node %s: container=%s, status=%s, pid=%d",
