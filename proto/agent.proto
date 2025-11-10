@@ -90,6 +90,37 @@ message UpdateStatusResponse {
   string response_message = 2;
 }
 
+// Container inspection data sent from Agent to Centro after container is running
+message ContainerData {
+  string container_id = 1;         // Container ID
+  string container_name = 2;       // Container name
+  string image = 3;                // Full image identifier
+  string image_name = 4;           // Image name (e.g., "nginx:latest")
+  repeated string command = 5;     // Command executed in container
+  repeated string args = 6;        // Arguments passed to command
+  string created = 7;              // Creation timestamp
+  string started_at = 8;           // Container start timestamp
+  string finished_at = 9;          // Container finish timestamp (if stopped)
+  string status = 10;              // Container status: "running", "stopped", "exited", "failed"
+  int32 exit_code = 11;            // Exit code (if stopped)
+  int32 pid = 12;                  // Process ID
+  map<string, string> labels = 13; // Container labels
+  repeated string ports = 14;      // Exposed ports
+  repeated string volumes = 15;    // Mounted volumes
+}
+
+message SetContainerDataRequest {
+  string node_id = 1;              // Node ID where container is running
+  string job_id = 2;               // Job ID associated with the container
+  ContainerData container_data = 3; // Container inspection data
+  int64 timestamp = 4;             // Timestamp when data was collected
+}
+
+message SetContainerDataResponse {
+  bool acknowledged = 1;
+  string response_message = 2;
+}
+
 // Service provided by Centro (Control Plane) for Agent (Data Plane) communication
 service CentroSchedulerService {
   // Agent sends periodic heartbeat to report node health and available resources
@@ -100,5 +131,8 @@ service CentroSchedulerService {
 
   // Agent sends job execution status updates to Centro
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse);
+
+  // Agent sends container inspection data after container is running
+  rpc SetContainerData(SetContainerDataRequest) returns (SetContainerDataResponse);
 }
 

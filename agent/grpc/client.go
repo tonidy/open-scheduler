@@ -163,6 +163,40 @@ func (c *GrpcClient) UpdateStatus(ctx context.Context, nodeID string, token stri
 	return resp, nil
 }
 
+func (c *GrpcClient) SetContainerData(ctx context.Context, nodeID string, token string, jobID string, containerData *pb.ContainerData, timestamp int64) (*pb.SetContainerDataResponse, error) {
+	c.mu.RLock()
+	client := c.client
+	c.mu.RUnlock()
+
+	if client == nil {
+		return nil, fmt.Errorf("gRPC client is not connected")
+	}
+
+	md := metadata.New(map[string]string{
+		"authorization": fmt.Sprintf("Bearer %s", token),
+	})
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	req := &pb.SetContainerDataRequest{
+		NodeId:        nodeID,
+		JobId:         jobID,
+		ContainerData: containerData,
+		Timestamp:     timestamp,
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := client.SetContainerData(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("SetContainerData RPC failed: %w", err)
+	}
+
+	log.Printf("[GrpcClient] SetContainerData response: acknowledged=%v, message=%s", resp.Acknowledged, resp.ResponseMessage)
+
+	return resp, nil
+}
+
 func (c *GrpcClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

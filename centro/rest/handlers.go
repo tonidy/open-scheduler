@@ -45,6 +45,7 @@ func (s *APIServer) setupRoutes() {
 	protected.HandleFunc("/jobs/{id}", s.handleGetJob).Methods("GET")
 	protected.HandleFunc("/jobs/{id}/status", s.handleGetJobStatus).Methods("GET")
 	protected.HandleFunc("/jobs/{id}/events", s.handleGetJobEvents).Methods("GET")
+	protected.HandleFunc("/jobs/{id}/container", s.handleGetContainerData).Methods("GET")
 
 	protected.HandleFunc("/nodes", s.handleListNodes).Methods("GET")
 	protected.HandleFunc("/nodes/{id}", s.handleGetNode).Methods("GET")
@@ -484,6 +485,40 @@ func (s *APIServer) handleGetJobEvents(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"job_id": jobID,
 		"events": events,
+	})
+}
+
+// handleGetContainerData godoc
+// @Summary Get container data for a job
+// @Description Retrieves the container data associated with a specific job
+// @Tags Jobs
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Job ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /jobs/{id}/container [get]
+func (s *APIServer) handleGetContainerData(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	jobID := vars["id"]
+
+	ctx := context.Background()
+	containerData, err := s.storage.GetContainerData(ctx, jobID)
+	if err != nil {
+		log.Printf("[Centro REST] Failed to get container data: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve container data")
+		return
+	}
+
+	if containerData == nil {
+		respondWithError(w, http.StatusNotFound, "Container data not found for this job")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":         jobID,
+		"container_data": containerData,
 	})
 }
 

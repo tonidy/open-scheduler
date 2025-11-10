@@ -784,6 +784,283 @@ func (x *UpdateStatusResponse) GetResponseMessage() string {
 	return ""
 }
 
+// Container inspection data sent from Agent to Centro after container is running
+type ContainerData struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContainerId   string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`                                               // Container ID
+	ContainerName string                 `protobuf:"bytes,2,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`                                         // Container name
+	Image         string                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`                                                                              // Full image identifier
+	ImageName     string                 `protobuf:"bytes,4,opt,name=image_name,json=imageName,proto3" json:"image_name,omitempty"`                                                     // Image name (e.g., "nginx:latest")
+	Command       []string               `protobuf:"bytes,5,rep,name=command,proto3" json:"command,omitempty"`                                                                          // Command executed in container
+	Args          []string               `protobuf:"bytes,6,rep,name=args,proto3" json:"args,omitempty"`                                                                                // Arguments passed to command
+	Created       string                 `protobuf:"bytes,7,opt,name=created,proto3" json:"created,omitempty"`                                                                          // Creation timestamp
+	StartedAt     string                 `protobuf:"bytes,8,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`                                                     // Container start timestamp
+	FinishedAt    string                 `protobuf:"bytes,9,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`                                                  // Container finish timestamp (if stopped)
+	Status        string                 `protobuf:"bytes,10,opt,name=status,proto3" json:"status,omitempty"`                                                                           // Container status: "running", "stopped", "exited", "failed"
+	ExitCode      int32                  `protobuf:"varint,11,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`                                                      // Exit code (if stopped)
+	Pid           int32                  `protobuf:"varint,12,opt,name=pid,proto3" json:"pid,omitempty"`                                                                                // Process ID
+	Labels        map[string]string      `protobuf:"bytes,13,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Container labels
+	Ports         []string               `protobuf:"bytes,14,rep,name=ports,proto3" json:"ports,omitempty"`                                                                             // Exposed ports
+	Volumes       []string               `protobuf:"bytes,15,rep,name=volumes,proto3" json:"volumes,omitempty"`                                                                         // Mounted volumes
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContainerData) Reset() {
+	*x = ContainerData{}
+	mi := &file_proto_agent_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContainerData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerData) ProtoMessage() {}
+
+func (x *ContainerData) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerData.ProtoReflect.Descriptor instead.
+func (*ContainerData) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ContainerData) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *ContainerData) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
+	}
+	return ""
+}
+
+func (x *ContainerData) GetImage() string {
+	if x != nil {
+		return x.Image
+	}
+	return ""
+}
+
+func (x *ContainerData) GetImageName() string {
+	if x != nil {
+		return x.ImageName
+	}
+	return ""
+}
+
+func (x *ContainerData) GetCommand() []string {
+	if x != nil {
+		return x.Command
+	}
+	return nil
+}
+
+func (x *ContainerData) GetArgs() []string {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
+func (x *ContainerData) GetCreated() string {
+	if x != nil {
+		return x.Created
+	}
+	return ""
+}
+
+func (x *ContainerData) GetStartedAt() string {
+	if x != nil {
+		return x.StartedAt
+	}
+	return ""
+}
+
+func (x *ContainerData) GetFinishedAt() string {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return ""
+}
+
+func (x *ContainerData) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ContainerData) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *ContainerData) GetPid() int32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *ContainerData) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+func (x *ContainerData) GetPorts() []string {
+	if x != nil {
+		return x.Ports
+	}
+	return nil
+}
+
+func (x *ContainerData) GetVolumes() []string {
+	if x != nil {
+		return x.Volumes
+	}
+	return nil
+}
+
+type SetContainerDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                      // Node ID where container is running
+	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`                         // Job ID associated with the container
+	ContainerData *ContainerData         `protobuf:"bytes,3,opt,name=container_data,json=containerData,proto3" json:"container_data,omitempty"` // Container inspection data
+	Timestamp     int64                  `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                             // Timestamp when data was collected
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetContainerDataRequest) Reset() {
+	*x = SetContainerDataRequest{}
+	mi := &file_proto_agent_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetContainerDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetContainerDataRequest) ProtoMessage() {}
+
+func (x *SetContainerDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetContainerDataRequest.ProtoReflect.Descriptor instead.
+func (*SetContainerDataRequest) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SetContainerDataRequest) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *SetContainerDataRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *SetContainerDataRequest) GetContainerData() *ContainerData {
+	if x != nil {
+		return x.ContainerData
+	}
+	return nil
+}
+
+func (x *SetContainerDataRequest) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+type SetContainerDataResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Acknowledged    bool                   `protobuf:"varint,1,opt,name=acknowledged,proto3" json:"acknowledged,omitempty"`
+	ResponseMessage string                 `protobuf:"bytes,2,opt,name=response_message,json=responseMessage,proto3" json:"response_message,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SetContainerDataResponse) Reset() {
+	*x = SetContainerDataResponse{}
+	mi := &file_proto_agent_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetContainerDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetContainerDataResponse) ProtoMessage() {}
+
+func (x *SetContainerDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetContainerDataResponse.ProtoReflect.Descriptor instead.
+func (*SetContainerDataResponse) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SetContainerDataResponse) GetAcknowledged() bool {
+	if x != nil {
+		return x.Acknowledged
+	}
+	return false
+}
+
+func (x *SetContainerDataResponse) GetResponseMessage() string {
+	if x != nil {
+		return x.ResponseMessage
+	}
+	return ""
+}
+
 var File_proto_agent_proto protoreflect.FileDescriptor
 
 const file_proto_agent_proto_rawDesc = "" +
@@ -863,11 +1140,43 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\"e\n" +
 	"\x14UpdateStatusResponse\x12\"\n" +
 	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
-	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage2\xf0\x01\n" +
+	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage\"\x86\x04\n" +
+	"\rContainerData\x12!\n" +
+	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12%\n" +
+	"\x0econtainer_name\x18\x02 \x01(\tR\rcontainerName\x12\x14\n" +
+	"\x05image\x18\x03 \x01(\tR\x05image\x12\x1d\n" +
+	"\n" +
+	"image_name\x18\x04 \x01(\tR\timageName\x12\x18\n" +
+	"\acommand\x18\x05 \x03(\tR\acommand\x12\x12\n" +
+	"\x04args\x18\x06 \x03(\tR\x04args\x12\x18\n" +
+	"\acreated\x18\a \x01(\tR\acreated\x12\x1d\n" +
+	"\n" +
+	"started_at\x18\b \x01(\tR\tstartedAt\x12\x1f\n" +
+	"\vfinished_at\x18\t \x01(\tR\n" +
+	"finishedAt\x12\x16\n" +
+	"\x06status\x18\n" +
+	" \x01(\tR\x06status\x12\x1b\n" +
+	"\texit_code\x18\v \x01(\x05R\bexitCode\x12\x10\n" +
+	"\x03pid\x18\f \x01(\x05R\x03pid\x12<\n" +
+	"\x06labels\x18\r \x03(\v2$.scheduler.ContainerData.LabelsEntryR\x06labels\x12\x14\n" +
+	"\x05ports\x18\x0e \x03(\tR\x05ports\x12\x18\n" +
+	"\avolumes\x18\x0f \x03(\tR\avolumes\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa8\x01\n" +
+	"\x17SetContainerDataRequest\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x15\n" +
+	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12?\n" +
+	"\x0econtainer_data\x18\x03 \x01(\v2\x18.scheduler.ContainerDataR\rcontainerData\x12\x1c\n" +
+	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp\"i\n" +
+	"\x18SetContainerDataResponse\x12\"\n" +
+	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
+	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage2\xcd\x02\n" +
 	"\x16CentroSchedulerService\x12F\n" +
 	"\tHeartbeat\x12\x1b.scheduler.HeartbeatRequest\x1a\x1c.scheduler.HeartbeatResponse\x12=\n" +
 	"\x06GetJob\x12\x18.scheduler.GetJobRequest\x1a\x19.scheduler.GetJobResponse\x12O\n" +
-	"\fUpdateStatus\x12\x1e.scheduler.UpdateStatusRequest\x1a\x1f.scheduler.UpdateStatusResponseB!Z\x1fgithub.com/open-scheduler/protob\x06proto3"
+	"\fUpdateStatus\x12\x1e.scheduler.UpdateStatusRequest\x1a\x1f.scheduler.UpdateStatusResponse\x12[\n" +
+	"\x10SetContainerData\x12\".scheduler.SetContainerDataRequest\x1a#.scheduler.SetContainerDataResponseB!Z\x1fgithub.com/open-scheduler/protob\x06proto3"
 
 var (
 	file_proto_agent_proto_rawDescOnce sync.Once
@@ -881,45 +1190,53 @@ func file_proto_agent_proto_rawDescGZIP() []byte {
 	return file_proto_agent_proto_rawDescData
 }
 
-var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_proto_agent_proto_goTypes = []any{
-	(*HeartbeatRequest)(nil),     // 0: scheduler.HeartbeatRequest
-	(*HeartbeatResponse)(nil),    // 1: scheduler.HeartbeatResponse
-	(*GetJobRequest)(nil),        // 2: scheduler.GetJobRequest
-	(*Job)(nil),                  // 3: scheduler.Job
-	(*Task)(nil),                 // 4: scheduler.Task
-	(*Resources)(nil),            // 5: scheduler.Resources
-	(*Volume)(nil),               // 6: scheduler.Volume
-	(*ContainerSpec)(nil),        // 7: scheduler.ContainerSpec
-	(*GetJobResponse)(nil),       // 8: scheduler.GetJobResponse
-	(*UpdateStatusRequest)(nil),  // 9: scheduler.UpdateStatusRequest
-	(*UpdateStatusResponse)(nil), // 10: scheduler.UpdateStatusResponse
-	nil,                          // 11: scheduler.HeartbeatRequest.NodeMetadataEntry
-	nil,                          // 12: scheduler.Job.JobMetadataEntry
-	nil,                          // 13: scheduler.Task.EnvironmentVariablesEntry
-	nil,                          // 14: scheduler.ContainerSpec.DriverOptionsEntry
+	(*HeartbeatRequest)(nil),         // 0: scheduler.HeartbeatRequest
+	(*HeartbeatResponse)(nil),        // 1: scheduler.HeartbeatResponse
+	(*GetJobRequest)(nil),            // 2: scheduler.GetJobRequest
+	(*Job)(nil),                      // 3: scheduler.Job
+	(*Task)(nil),                     // 4: scheduler.Task
+	(*Resources)(nil),                // 5: scheduler.Resources
+	(*Volume)(nil),                   // 6: scheduler.Volume
+	(*ContainerSpec)(nil),            // 7: scheduler.ContainerSpec
+	(*GetJobResponse)(nil),           // 8: scheduler.GetJobResponse
+	(*UpdateStatusRequest)(nil),      // 9: scheduler.UpdateStatusRequest
+	(*UpdateStatusResponse)(nil),     // 10: scheduler.UpdateStatusResponse
+	(*ContainerData)(nil),            // 11: scheduler.ContainerData
+	(*SetContainerDataRequest)(nil),  // 12: scheduler.SetContainerDataRequest
+	(*SetContainerDataResponse)(nil), // 13: scheduler.SetContainerDataResponse
+	nil,                              // 14: scheduler.HeartbeatRequest.NodeMetadataEntry
+	nil,                              // 15: scheduler.Job.JobMetadataEntry
+	nil,                              // 16: scheduler.Task.EnvironmentVariablesEntry
+	nil,                              // 17: scheduler.ContainerSpec.DriverOptionsEntry
+	nil,                              // 18: scheduler.ContainerData.LabelsEntry
 }
 var file_proto_agent_proto_depIdxs = []int32{
-	11, // 0: scheduler.HeartbeatRequest.node_metadata:type_name -> scheduler.HeartbeatRequest.NodeMetadataEntry
+	14, // 0: scheduler.HeartbeatRequest.node_metadata:type_name -> scheduler.HeartbeatRequest.NodeMetadataEntry
 	4,  // 1: scheduler.Job.tasks:type_name -> scheduler.Task
-	12, // 2: scheduler.Job.job_metadata:type_name -> scheduler.Job.JobMetadataEntry
+	15, // 2: scheduler.Job.job_metadata:type_name -> scheduler.Job.JobMetadataEntry
 	7,  // 3: scheduler.Task.container_config:type_name -> scheduler.ContainerSpec
-	13, // 4: scheduler.Task.environment_variables:type_name -> scheduler.Task.EnvironmentVariablesEntry
+	16, // 4: scheduler.Task.environment_variables:type_name -> scheduler.Task.EnvironmentVariablesEntry
 	5,  // 5: scheduler.Task.resource_requirements:type_name -> scheduler.Resources
 	6,  // 6: scheduler.Task.volume_mounts:type_name -> scheduler.Volume
-	14, // 7: scheduler.ContainerSpec.driver_options:type_name -> scheduler.ContainerSpec.DriverOptionsEntry
+	17, // 7: scheduler.ContainerSpec.driver_options:type_name -> scheduler.ContainerSpec.DriverOptionsEntry
 	3,  // 8: scheduler.GetJobResponse.job:type_name -> scheduler.Job
-	0,  // 9: scheduler.CentroSchedulerService.Heartbeat:input_type -> scheduler.HeartbeatRequest
-	2,  // 10: scheduler.CentroSchedulerService.GetJob:input_type -> scheduler.GetJobRequest
-	9,  // 11: scheduler.CentroSchedulerService.UpdateStatus:input_type -> scheduler.UpdateStatusRequest
-	1,  // 12: scheduler.CentroSchedulerService.Heartbeat:output_type -> scheduler.HeartbeatResponse
-	8,  // 13: scheduler.CentroSchedulerService.GetJob:output_type -> scheduler.GetJobResponse
-	10, // 14: scheduler.CentroSchedulerService.UpdateStatus:output_type -> scheduler.UpdateStatusResponse
-	12, // [12:15] is the sub-list for method output_type
-	9,  // [9:12] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	18, // 9: scheduler.ContainerData.labels:type_name -> scheduler.ContainerData.LabelsEntry
+	11, // 10: scheduler.SetContainerDataRequest.container_data:type_name -> scheduler.ContainerData
+	0,  // 11: scheduler.CentroSchedulerService.Heartbeat:input_type -> scheduler.HeartbeatRequest
+	2,  // 12: scheduler.CentroSchedulerService.GetJob:input_type -> scheduler.GetJobRequest
+	9,  // 13: scheduler.CentroSchedulerService.UpdateStatus:input_type -> scheduler.UpdateStatusRequest
+	12, // 14: scheduler.CentroSchedulerService.SetContainerData:input_type -> scheduler.SetContainerDataRequest
+	1,  // 15: scheduler.CentroSchedulerService.Heartbeat:output_type -> scheduler.HeartbeatResponse
+	8,  // 16: scheduler.CentroSchedulerService.GetJob:output_type -> scheduler.GetJobResponse
+	10, // 17: scheduler.CentroSchedulerService.UpdateStatus:output_type -> scheduler.UpdateStatusResponse
+	13, // 18: scheduler.CentroSchedulerService.SetContainerData:output_type -> scheduler.SetContainerDataResponse
+	15, // [15:19] is the sub-list for method output_type
+	11, // [11:15] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_proto_agent_proto_init() }
@@ -933,7 +1250,7 @@ func file_proto_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_agent_proto_rawDesc), len(file_proto_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

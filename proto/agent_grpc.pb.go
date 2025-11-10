@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CentroSchedulerService_Heartbeat_FullMethodName    = "/scheduler.CentroSchedulerService/Heartbeat"
-	CentroSchedulerService_GetJob_FullMethodName       = "/scheduler.CentroSchedulerService/GetJob"
-	CentroSchedulerService_UpdateStatus_FullMethodName = "/scheduler.CentroSchedulerService/UpdateStatus"
+	CentroSchedulerService_Heartbeat_FullMethodName        = "/scheduler.CentroSchedulerService/Heartbeat"
+	CentroSchedulerService_GetJob_FullMethodName           = "/scheduler.CentroSchedulerService/GetJob"
+	CentroSchedulerService_UpdateStatus_FullMethodName     = "/scheduler.CentroSchedulerService/UpdateStatus"
+	CentroSchedulerService_SetContainerData_FullMethodName = "/scheduler.CentroSchedulerService/SetContainerData"
 )
 
 // CentroSchedulerServiceClient is the client API for CentroSchedulerService service.
@@ -36,6 +37,8 @@ type CentroSchedulerServiceClient interface {
 	GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error)
 	// Agent sends job execution status updates to Centro
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
+	// Agent sends container inspection data after container is running
+	SetContainerData(ctx context.Context, in *SetContainerDataRequest, opts ...grpc.CallOption) (*SetContainerDataResponse, error)
 }
 
 type centroSchedulerServiceClient struct {
@@ -76,6 +79,16 @@ func (c *centroSchedulerServiceClient) UpdateStatus(ctx context.Context, in *Upd
 	return out, nil
 }
 
+func (c *centroSchedulerServiceClient) SetContainerData(ctx context.Context, in *SetContainerDataRequest, opts ...grpc.CallOption) (*SetContainerDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetContainerDataResponse)
+	err := c.cc.Invoke(ctx, CentroSchedulerService_SetContainerData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CentroSchedulerServiceServer is the server API for CentroSchedulerService service.
 // All implementations must embed UnimplementedCentroSchedulerServiceServer
 // for forward compatibility.
@@ -88,6 +101,8 @@ type CentroSchedulerServiceServer interface {
 	GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error)
 	// Agent sends job execution status updates to Centro
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
+	// Agent sends container inspection data after container is running
+	SetContainerData(context.Context, *SetContainerDataRequest) (*SetContainerDataResponse, error)
 	mustEmbedUnimplementedCentroSchedulerServiceServer()
 }
 
@@ -106,6 +121,9 @@ func (UnimplementedCentroSchedulerServiceServer) GetJob(context.Context, *GetJob
 }
 func (UnimplementedCentroSchedulerServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
+}
+func (UnimplementedCentroSchedulerServiceServer) SetContainerData(context.Context, *SetContainerDataRequest) (*SetContainerDataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetContainerData not implemented")
 }
 func (UnimplementedCentroSchedulerServiceServer) mustEmbedUnimplementedCentroSchedulerServiceServer() {
 }
@@ -183,6 +201,24 @@ func _CentroSchedulerService_UpdateStatus_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CentroSchedulerService_SetContainerData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetContainerDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CentroSchedulerServiceServer).SetContainerData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CentroSchedulerService_SetContainerData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CentroSchedulerServiceServer).SetContainerData(ctx, req.(*SetContainerDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CentroSchedulerService_ServiceDesc is the grpc.ServiceDesc for CentroSchedulerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -201,6 +237,10 @@ var CentroSchedulerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateStatus",
 			Handler:    _CentroSchedulerService_UpdateStatus_Handler,
+		},
+		{
+			MethodName: "SetContainerData",
+			Handler:    _CentroSchedulerService_SetContainerData_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -13,12 +13,13 @@ import (
 )
 
 const (
-	nodesPrefix        = "/centro/nodes/"
-	jobQueuePrefix     = "/centro/jobs/queue/"
-	failJobQueuePrefix = "/centro/jobs/fail-queue/"
-	jobActivePrefix    = "/centro/jobs/active/"
-	jobHistoryPrefix   = "/centro/jobs/history/"
-	jobEventsPrefix    = "/centro/jobs/events/"
+	nodesPrefix         = "/centro/nodes/"
+	jobQueuePrefix      = "/centro/jobs/queue/"
+	failJobQueuePrefix  = "/centro/jobs/fail-queue/"
+	jobActivePrefix     = "/centro/jobs/active/"
+	jobHistoryPrefix    = "/centro/jobs/history/"
+	jobEventsPrefix     = "/centro/jobs/events/"
+	containerDataPrefix = "/centro/jobs/container_data/"
 )
 
 type Storage struct {
@@ -366,4 +367,37 @@ func (s *Storage) GetAllFailedJobs(ctx context.Context) (map[string]*pb.Job, err
 	}
 
 	return jobs, nil
+}
+
+func (s *Storage) SaveContainerData(ctx context.Context, jobID string, containerData *pb.ContainerData) error {
+	data, err := json.Marshal(containerData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal container data: %w", err)
+	}
+
+	key := containerDataPrefix + jobID
+	_, err = s.client.Put(ctx, key, string(data))
+	if err != nil {
+		return fmt.Errorf("failed to save container data: %w", err)
+	}
+	return nil
+}
+
+func (s *Storage) GetContainerData(ctx context.Context, jobID string) (*pb.ContainerData, error) {
+	key := containerDataPrefix + jobID
+	resp, err := s.client.Get(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get container data: %w", err)
+	}
+
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+
+	var containerData pb.ContainerData
+	if err := json.Unmarshal(resp.Kvs[0].Value, &containerData); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal container data: %w", err)
+	}
+
+	return &containerData, nil
 }
