@@ -104,8 +104,6 @@ func (d *ExecDriver) InspectContainer(ctx context.Context, containerID string) (
 	return model.ContainerInspect{}, fmt.Errorf("InspectContainer not implemented for exec driver")
 }
 
-// ListContainers lists all containers (not applicable for exec driver)
 func (d *ExecDriver) ListContainers(ctx context.Context) ([]model.ContainerInspect, error) {
-	// Exec driver doesn't manage containers
 	return []model.ContainerInspect{}, nil
 }

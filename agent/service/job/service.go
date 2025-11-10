@@ -55,10 +55,8 @@ func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID strin
 
 		log.Printf("[GetJobService] Running task: %s with driver: %s", task.TaskName, task.DriverType)
 
-		// Update status to running
 		s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running task: %s", task.TaskName))
 
-		// Create a new context with jobId for container metadata tracking
 		taskCtx := context.WithValue(ctx, "jobId", job.JobId)
 
 		err = driver.Run(taskCtx, task)

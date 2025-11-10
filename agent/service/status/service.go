@@ -34,13 +34,11 @@ func NewUpdateStatusService(grpcClient *sharedgrpc.GrpcClient, driver taskdriver
 func (s *UpdateStatusService) Execute(ctx context.Context, nodeID string, token string) error {
 	log.Printf("[UpdateStatusService] Updating status for node: %s", s.nodeID)
 
-	// If no driver is configured, skip container status updates
 	if s.driver == nil {
 		log.Printf("[UpdateStatusService] No driver configured, skipping container status updates")
 		return nil
 	}
 
-	// List all managed containers
 	containers, err := s.driver.ListContainers(ctx)
 	if err != nil {
 		log.Printf("[UpdateStatusService] Failed to list containers: %v", err)
@@ -49,27 +47,22 @@ func (s *UpdateStatusService) Execute(ctx context.Context, nodeID string, token 
 
 	log.Printf("[UpdateStatusService] Found %d containers to update", len(containers))
 
-	// Loop through each container and update its status
 	for _, container := range containers {
-		// Extract jobId from container labels
 		jobID, hasJobID := container.Labels["open-scheduler.job-id"]
 		if !hasJobID || jobID == "" {
 			log.Printf("[UpdateStatusService] Container %s has no job-id label, skipping", container.ID)
 			continue
 		}
 
-		// Map container status to job status
 		jobStatus := mapContainerStatusToJobStatus(container.Status)
 		statusMessage := fmt.Sprintf("Container %s is %s", container.Name, container.Status)
 
-		// Add exit code information if container has exited
 		if container.Status == model.ContainerStatusExited || container.Status == model.ContainerStatusFailed {
 			statusMessage = fmt.Sprintf("%s (exit code: %d)", statusMessage, container.ExitCode)
 		}
 
 		log.Printf("[UpdateStatusService] Updating job %s: status=%s, container=%s", jobID, jobStatus, container.ID)
 
-		// Send status update to Centro
 		resp, err := s.grpcClient.UpdateStatus(
 			ctx,
 			s.nodeID,
@@ -96,7 +89,6 @@ func (s *UpdateStatusService) Execute(ctx context.Context, nodeID string, token 
 	return nil
 }
 
-// mapContainerStatusToJobStatus maps container status to job status
 func mapContainerStatusToJobStatus(containerStatus model.ContainerStatus) string {
 	switch containerStatus {
 	case model.ContainerStatusRunning:

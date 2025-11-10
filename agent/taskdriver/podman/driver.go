@@ -137,19 +137,15 @@ func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error
 		s.Command = append(s.Command, task.ContainerConfig.Arguments...)
 	}
 
-	// Add labels/metadata for tracking
-	// This allows us to identify and manage containers by jobId
 	labels := make(map[string]string)
 	labels["open-scheduler.managed"] = "true"
 	labels["open-scheduler.task-name"] = task.TaskName
 
-	// Add jobId from parent context if available
-	// The jobId should be passed through the task context
 	if jobID, ok := ctx.Value("jobId").(string); ok && jobID != "" {
 		labels["open-scheduler.job-id"] = jobID
 	}
 	s.Labels = labels
-	// Set environment variables
+
 	if len(task.EnvironmentVariables) > 0 {
 		envVars := make(map[string]string)
 		for k, v := range task.EnvironmentVariables {
@@ -321,11 +317,9 @@ func (d *PodmanDriver) InspectContainer(ctx context.Context, containerID string)
 	}, nil
 }
 
-// ListContainers lists all containers managed by open-scheduler
 func (d *PodmanDriver) ListContainers(ctx context.Context) ([]model.ContainerInspect, error) {
 	log.Printf("[PodmanDriver] Listing all containers")
 
-	// List all containers (including stopped ones)
 	allContainers := true
 	containerList, err := containers.List(d.ctx, &containers.ListOptions{
 		All: &allContainers,
@@ -337,10 +331,8 @@ func (d *PodmanDriver) ListContainers(ctx context.Context) ([]model.ContainerIns
 	result := make([]model.ContainerInspect, 0)
 
 	for _, container := range containerList {
-		// Filter only containers managed by open-scheduler
 		if container.Labels != nil {
 			if managed, ok := container.Labels["open-scheduler.managed"]; ok && managed == "true" {
-				// Get detailed inspect data for this container
 				inspectData, err := d.InspectContainer(ctx, container.ID)
 				if err != nil {
 					log.Printf("[PodmanDriver] Warning: failed to inspect container %s: %v", container.ID, err)

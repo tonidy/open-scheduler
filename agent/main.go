@@ -77,11 +77,9 @@ func main() {
 	executor := NewCommandExecutor()
 	executor.SetToken(token, nodeID)
 
-	// Initialize task driver for status updates
-	// Try podman first, fallback to nil if unavailable
 	driverName := os.Getenv("DRIVER_TYPE")
 	if driverName == "" {
-		driverName = "podman" // Default to podman
+		driverName = "podman"
 	}
 
 	driver, err := taskdriver.NewDriver(driverName)
@@ -91,13 +89,11 @@ func main() {
 		driver = nil
 	}
 
-	// Create UpdateStatusService with driver
 	statusService, err := statusservice.NewUpdateStatusService(grpcClient, driver, token, nodeID)
 	if err != nil {
 		log.Fatalf("Failed to create UpdateStatusService: %v", err)
 	}
 
-	// Register commands
 	executor.Register(commands.NewHeartbeatCommand(grpcClient))
 	executor.Register(commands.NewGetJobCommand(grpcClient))
 	executor.Register(commands.NewUpdateStatusCommand(statusService))
