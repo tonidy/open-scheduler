@@ -1,25 +1,26 @@
 syntax = "proto3";
 
-package talk;
+package scheduler;
 
 option go_package = "github.com/open-scheduler/proto";
 
-// Heartbeat message sent from NodeAgent to ControlPlane
+// Heartbeat message sent from Agent (Data Plane) to Centro (Control Plane)
 message HeartbeatRequest {
   string node_id = 1;
   int64 timestamp = 2;
-  float ram_mb = 3;   // Available RAM in MB
-  float cpu_percent = 4; // Available CPU in percent
-  float disk_mb = 5;  // Available Disk in MB
-  map<string, string> metadata = 6;
+  float available_memory_mb = 3;   // Available RAM in MB
+  float available_cpu_cores = 4;   // Available CPU in cores (e.g., 4.0 = 4 cores, 2.5 = 2.5 cores)
+  float available_disk_mb = 5;     // Available disk space in MB
+  map<string, string> node_metadata = 6; // Additional node metadata
+  string cluster_name = 7;         // Cluster this node belongs to
 }
 
 message HeartbeatResponse {
-  bool ok = 1;
-  string message = 2;
+  bool acknowledged = 1;
+  string response_message = 2;
 }
 
-// Request to get a job from the ControlPlane
+// Request from Agent to get an available job from Centro
 message GetJobRequest {
   string node_id = 1;
 }
@@ -27,90 +28,77 @@ message GetJobRequest {
 // Job specification, inspired by Nomad job spec (simplified)
 message Job {
   string job_id = 1;
-  string name = 2;
-  string type = 3;
-  string datacenters = 4; // comma-separated, for simplicity
+  string job_name = 2;
+  string job_type = 3;              // Job type: "service", "batch", etc.
+  repeated string selected_clusters = 4; // Clusters where this job can run (empty = any cluster)
 
   repeated Task tasks = 5;
-  map<string, string> meta = 6;
+  map<string, string> job_metadata = 6; // Job-level metadata
 }
 
 message Task {
-  string name = 1;
-  string driver = 2;
-  string exec = 3;
-  ContainerSpec config = 4;
-  map<string, string> env = 5;
-  Resources resources = 6;
-  repeated Volume volumes = 7;
-  string kind = 8;
+  string task_name = 1;
+  string driver_type = 2;        // Driver type: "podman", "incus", "exec"
+  string command = 3;             // Command or script to execute
+  ContainerSpec container_config = 4;
+  map<string, string> environment_variables = 5;
+  Resources resource_requirements = 6;
+  repeated Volume volume_mounts = 7;
+  string workload_type = 8;       // Workload type: "container", "vm", "process"
 }
 
-// Container resource specifications
+// Resource requirements and limits for task execution
 message Resources {
-  int64 memory_mb = 1;      // Memory limit in MB
-  int64 memory_reserve_mb = 2; // Reserved memory in MB
-  float cpu = 3;            // CPU limit (e.g., 1.0 = 1 core, 0.5 = half core)
-  float cpu_reserve = 4;    // Reserved CPU
+  int64 memory_limit_mb = 1;      // Maximum memory in MB
+  int64 memory_reserved_mb = 2;   // Reserved/guaranteed memory in MB
+  float cpu_limit_cores = 3;      // CPU limit in cores (e.g., 1.0 = 1 core, 0.5 = half core)
+  float cpu_reserved_cores = 4;   // Reserved/guaranteed CPU in cores
 }
 
-// Volume mount specification
+// Volume mount specification for binding host paths to container/VM paths
 message Volume {
-  string host_path = 1;      // Path on the host
-  string container_path = 2; // Path inside the container
-  bool read_only = 3;        // Whether the volume is read-only
+  string source_path = 1;      // Path on the host system
+  string target_path = 2;      // Path inside the container/VM
+  bool read_only = 3;          // Whether the mount is read-only
 }
 
-// Container specification
+// Container/image specification for containerized workloads
 message ContainerSpec {
-  string image = 1;
-  repeated string command = 2;  // Command to run in the container
-  repeated string args = 3;     // Arguments for the command
-  map<string, string> options = 4;
+  string image_name = 1;             // Container image (e.g., "nginx:latest")
+  repeated string entrypoint = 2;    // Entrypoint command to run in the container
+  repeated string arguments = 3;     // Arguments for the entrypoint command
+  map<string, string> driver_options = 4; // Driver-specific configuration options
 }
 
 message GetJobResponse {
-  bool has_job = 1;
+  bool job_available = 1;       // Whether a job is available for execution
   Job job = 2;
-  string message = 3;
+  string response_message = 3;
 }
 
-// Update status of a job from NodeAgent to ControlPlane
+// Status update from Agent to Centro about job execution
 message UpdateStatusRequest {
   string node_id = 1;
   string job_id = 2;
-  string status = 3; // e.g., "running", "completed", "failed"
-  string detail = 4;
+  string job_status = 3;        // Job status: "pending", "running", "completed", "failed"
+  string status_message = 4;    // Detailed status message or error description
   int64 timestamp = 5;
 }
 
 message UpdateStatusResponse {
-  bool ok = 1;
-  string message = 2;
+  bool acknowledged = 1;
+  string response_message = 2;
 }
 
-// Request to claim a job from the ControlPlane
-message ClaimJobRequest {
-  string node_id = 1;
-  string job_id = 2;
-}
-
-message ClaimJobResponse {
-  bool ok = 1;
-  string message = 2;
-}
-
-service NodeAgentService {
-  // NodeAgent sends a heartbeat to ControlPlane
+// Service provided by Centro (Control Plane) for Agent (Data Plane) communication
+service CentroSchedulerService {
+  // Agent sends periodic heartbeat to report node health and available resources
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 
-  // NodeAgent requests a job from ControlPlane
+  // Agent requests an available job from Centro for execution
   rpc GetJob(GetJobRequest) returns (GetJobResponse);
 
-  // NodeAgent claims a job before executing it
-  rpc ClaimJob(ClaimJobRequest) returns (ClaimJobResponse);
-
-  // NodeAgent sends job status update
+  // Agent sends job execution status updates to Centro
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse);
 }
 

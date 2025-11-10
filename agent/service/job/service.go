@@ -12,10 +12,10 @@ import (
 )
 
 type GetJobService struct {
-	grpcClient *agentgrpc.SharedClient
+	grpcClient *agentgrpc.GrpcClient
 }
 
-func NewGetJobService(grpcClient *agentgrpc.SharedClient) (*GetJobService, error) {
+func NewGetJobService(grpcClient *agentgrpc.GrpcClient) (*GetJobService, error) {
 	if grpcClient == nil {
 		return nil, fmt.Errorf("gRPC client cannot be nil")
 	}
@@ -33,12 +33,12 @@ func (s *GetJobService) Execute(ctx context.Context, nodeID string, token string
 		return fmt.Errorf("GetJob failed: %w", err)
 	}
 
-	if resp.HasJob {
+	if resp.JobAvailable {
 		if err := s.handleJob(ctx, resp.Job, nodeID, token); err != nil {
 			return fmt.Errorf("failed to handle job: %w", err)
 		}
 	} else {
-		log.Printf("[GetJobService] No job available: %s", resp.Message)
+		log.Printf("[GetJobService] No job available: %s", resp.ResponseMessage)
 	}
 
 	return nil
@@ -47,64 +47,46 @@ func (s *GetJobService) Execute(ctx context.Context, nodeID string, token string
 func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID string, token string) error {
 	log.Printf("[GetJobService] Received job:")
 	log.Printf("  Job ID: %s", job.JobId)
-	log.Printf("  Name: %s", job.Name)
-	log.Printf("  Type: %s", job.Type)
-	log.Printf("  Datacenters: %s", job.Datacenters)
+	log.Printf("  Name: %s", job.JobName)
+	log.Printf("  Type: %s", job.JobType)
+	log.Printf("  Selected Clusters: %v", job.SelectedClusters)
 
-	if len(job.Meta) > 0 {
+	if len(job.JobMetadata) > 0 {
 		log.Printf("  Metadata:")
-		for k, v := range job.Meta {
+		for k, v := range job.JobMetadata {
 			log.Printf("    %s: %s", k, v)
 		}
 	}
 
-	if err := s.claimJob(ctx, job.JobId, nodeID, token); err != nil {
-		return fmt.Errorf("failed to claim job: %w", err)
-	}
+	// Job is already assigned/claimed by GetJob (via dequeue), so we can start executing
+	log.Printf("[GetJobService] Job %s already assigned to this node, starting execution", job.JobId)
 
 	for _, task := range job.Tasks {
-		driver, err := taskdriver.NewDriver(task.Driver)
+		driver, err := taskdriver.NewDriver(task.DriverType)
 		if err != nil {
 			// Report failure to Centro
 			s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Failed to create driver: %v", err))
-			return fmt.Errorf("failed to create driver for task %s: %w", task.Name, err)
+			return fmt.Errorf("failed to create driver for task %s: %w", task.TaskName, err)
 		}
 
-		log.Printf("[GetJobService] Running task: %s with driver: %s", task.Name, task.Driver)
+		log.Printf("[GetJobService] Running task: %s with driver: %s", task.TaskName, task.DriverType)
 
 		// Update status to running
-		s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running task: %s", task.Name))
+		s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running task: %s", task.TaskName))
 
 		err = driver.Run(ctx, task)
 		if err != nil {
 			// Report failure to Centro
-			s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Task %s failed: %v", task.Name, err))
-			return fmt.Errorf("failed to run task %s: %w", task.Name, err)
+			s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Task %s failed: %v", task.TaskName, err))
+			return fmt.Errorf("failed to run task %s: %w", task.TaskName, err)
 		}
-		log.Printf("[GetJobService] Task %s completed successfully", task.Name)
+		log.Printf("[GetJobService] Task %s completed successfully", task.TaskName)
 	}
 
 	// Report completion to Centro
 	if err := s.updateJobStatus(ctx, job.JobId, nodeID, token, "completed", "All tasks completed successfully"); err != nil {
 		log.Printf("[GetJobService] Warning: Failed to update job status: %v", err)
 	}
-
-	return nil
-}
-
-func (s *GetJobService) claimJob(ctx context.Context, jobID string, nodeID string, token string) error {
-	log.Printf("[GetJobService] Claiming job: %s for node: %s", jobID, nodeID)
-
-	resp, err := s.grpcClient.ClaimJob(ctx, nodeID, jobID, token)
-	if err != nil {
-		return fmt.Errorf("ClaimJob failed: %w", err)
-	}
-
-	if !resp.Ok {
-		return fmt.Errorf("ClaimJob failed: %s", resp.Message)
-	}
-
-	log.Printf("[GetJobService] Claimed job: %s", resp.Message)
 
 	return nil
 }
@@ -118,10 +100,10 @@ func (s *GetJobService) updateJobStatus(ctx context.Context, jobID string, nodeI
 		return fmt.Errorf("UpdateStatus failed: %w", err)
 	}
 
-	if !resp.Ok {
-		return fmt.Errorf("UpdateStatus failed: %s", resp.Message)
+	if !resp.Acknowledged {
+		return fmt.Errorf("UpdateStatus failed: %s", resp.ResponseMessage)
 	}
 
-	log.Printf("[GetJobService] Status updated: %s", resp.Message)
+	log.Printf("[GetJobService] Status updated: %s", resp.ResponseMessage)
 	return nil
 }

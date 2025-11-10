@@ -102,14 +102,14 @@ func NewPodmanDriver() *PodmanDriver {
 }
 
 func (d *PodmanDriver) Run(ctx context.Context, task *pb.Task) error {
-	err := d.pullImage(ctx, task.Config.Image)
+	err := d.pullImage(ctx, task.ContainerConfig.ImageName)
 	if err != nil {
-		return fmt.Errorf("failed to pull image %s: %w", task.Config.Image, err)
+		return fmt.Errorf("failed to pull image %s: %w", task.ContainerConfig.ImageName, err)
 	}
 
 	err = d.createContainer(ctx, task)
 	if err != nil {
-		return fmt.Errorf("failed to create container %s: %w", task.Config.Image, err)
+		return fmt.Errorf("failed to create container %s: %w", task.ContainerConfig.ImageName, err)
 	}
 
 	return nil
@@ -125,50 +125,50 @@ func (d *PodmanDriver) pullImage(ctx context.Context, image string) error {
 }
 
 func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error {
-	s := specgen.NewSpecGenerator(task.Config.Image, false)
+	s := specgen.NewSpecGenerator(task.ContainerConfig.ImageName, false)
 	s.Terminal = true
 
 	// Set command and args if specified
-	if len(task.Config.Command) > 0 {
-		s.Command = task.Config.Command
+	if len(task.ContainerConfig.Entrypoint) > 0 {
+		s.Command = task.ContainerConfig.Entrypoint
 	}
-	if len(task.Config.Args) > 0 {
-		s.Command = append(s.Command, task.Config.Args...)
+	if len(task.ContainerConfig.Arguments) > 0 {
+		s.Command = append(s.Command, task.ContainerConfig.Arguments...)
 	}
 	// Set environment variables
-	if len(task.Env) > 0 {
+	if len(task.EnvironmentVariables) > 0 {
 		envVars := make(map[string]string)
-		for k, v := range task.Env {
+		for k, v := range task.EnvironmentVariables {
 			envVars[k] = v
 		}
 		s.Env = envVars
 	}
 
 	// Set resource limits
-	if task.Resources != nil {
+	if task.ResourceRequirements != nil {
 		// Memory limits (convert MB to bytes)
-		if task.Resources.MemoryMb > 0 {
-			memoryLimit := task.Resources.MemoryMb * 1024 * 1024
+		if task.ResourceRequirements.MemoryLimitMb > 0 {
+			memoryLimit := task.ResourceRequirements.MemoryLimitMb * 1024 * 1024
 			s.ResourceLimits = &spec.LinuxResources{}
 			s.ResourceLimits.Memory = &spec.LinuxMemory{
 				Limit: &memoryLimit,
 			}
 			// Set memory reservation if specified
-			if task.Resources.MemoryReserveMb > 0 {
-				memoryReserve := task.Resources.MemoryReserveMb * 1024 * 1024
+			if task.ResourceRequirements.MemoryReservedMb > 0 {
+				memoryReserve := task.ResourceRequirements.MemoryReservedMb * 1024 * 1024
 				s.ResourceLimits.Memory.Reservation = &memoryReserve
 			}
 		}
 
 		// CPU limits
-		if task.Resources.Cpu > 0 {
+		if task.ResourceRequirements.CpuLimitCores > 0 {
 			if s.ResourceLimits == nil {
 				s.ResourceLimits = &spec.LinuxResources{}
 			}
 			// Convert CPU float to quota/period
 			// Default period is 100000 microseconds (0.1s)
 			period := uint64(100000)
-			quota := int64(task.Resources.Cpu * float32(period))
+			quota := int64(task.ResourceRequirements.CpuLimitCores * float32(period))
 			s.ResourceLimits.CPU = &spec.LinuxCPU{
 				Quota:  &quota,
 				Period: &period,
@@ -177,9 +177,9 @@ func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error
 	}
 
 	// Set volume mounts
-	if len(task.Volumes) > 0 {
-		mounts := make([]spec.Mount, 0, len(task.Volumes))
-		for _, vol := range task.Volumes {
+	if len(task.VolumeMounts) > 0 {
+		mounts := make([]spec.Mount, 0, len(task.VolumeMounts))
+		for _, vol := range task.VolumeMounts {
 			mountType := "bind"
 			mountOpts := []string{"rbind"}
 			if vol.ReadOnly {
@@ -190,8 +190,8 @@ func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error
 
 			mounts = append(mounts, spec.Mount{
 				Type:        mountType,
-				Source:      vol.HostPath,
-				Destination: vol.ContainerPath,
+				Source:      vol.SourcePath,
+				Destination: vol.TargetPath,
 				Options:     mountOpts,
 			})
 		}
@@ -199,7 +199,7 @@ func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error
 	}
 
 	// Create container with spec
-	log.Printf("[PodmanDriver] Creating container with image: %s", task.Config.Image)
+	log.Printf("[PodmanDriver] Creating container with image: %s", task.ContainerConfig.ImageName)
 	r, err := containers.CreateWithSpec(d.ctx, s, &containers.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)

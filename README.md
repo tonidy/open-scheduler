@@ -18,7 +18,18 @@ Pattern Control Plane x Data Plane
 
 - Simple Scheduler
 - Provisioning with incus
-- **Persistent storage using etcd** - See [ETCD_SETUP.md](ETCD_SETUP.md) for details
+- **Persistent storage using etcd** - See [ETCD_SETUP.md](README/ETCD_SETUP.md) for details
+- **Cluster-aware job scheduling** - See [CLUSTER_TERMINOLOGY.md](README/CLUSTER_TERMINOLOGY.md) for details
+
+## 📚 Documentation
+
+All documentation has been organized in the [`README/`](README/) folder:
+
+- **[Documentation Index](README/INDEX.md)** - Complete guide to all documentation
+- **Setup Guides**: [etcd](README/ETCD_SETUP.md), [gRPC](README/GRPC_SETUP.md)
+- **Architecture**: [Centro](README/CENTRO.md), [Agent](README/AGENT.md), [Scheduler](README/SCHEDULER.md)
+- **API Documentation**: [REST API](README/REST_API_IMPLEMENTATION.md), [Swagger](README/SWAGGER.md)
+- **Features**: [Cluster Scheduling](README/CLUSTER_TERMINOLOGY.md), [Workflows](README/workflow.md)
 
 # Control Plane x Data Plane
 

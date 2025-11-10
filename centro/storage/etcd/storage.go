@@ -13,11 +13,12 @@ import (
 )
 
 const (
-	nodesPrefix      = "/centro/nodes/"
-	jobQueuePrefix   = "/centro/jobs/queue/"
-	jobActivePrefix  = "/centro/jobs/active/"
-	jobHistoryPrefix = "/centro/jobs/history/"
-	jobEventsPrefix  = "/centro/jobs/events/"
+	nodesPrefix        = "/centro/nodes/"
+	jobQueuePrefix     = "/centro/jobs/queue/"
+	failJobQueuePrefix = "/centro/jobs/fail-queue/"
+	jobActivePrefix    = "/centro/jobs/active/"
+	jobHistoryPrefix   = "/centro/jobs/history/"
+	jobEventsPrefix    = "/centro/jobs/events/"
 )
 
 type Storage struct {
@@ -26,9 +27,10 @@ type Storage struct {
 
 type NodeInfo struct {
 	NodeID        string            `json:"node_id"`
+	ClusterName   string            `json:"cluster_name"`
 	LastHeartbeat time.Time         `json:"last_heartbeat"`
 	RamMB         float32           `json:"ram_mb"`
-	CPUPercent    float32           `json:"cpu_percent"`
+	CPUCores      float32           `json:"cpu_cores"`
 	DiskMB        float32           `json:"disk_mb"`
 	Metadata      map[string]string `json:"metadata"`
 }
@@ -113,6 +115,31 @@ func (s *Storage) GetAllNodes(ctx context.Context) (map[string]*NodeInfo, error)
 	}
 
 	return nodes, nil
+}
+
+func (s *Storage) EnqueueFailedJob(ctx context.Context, job *pb.Job) error {
+	data, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("failed to marshal job: %w", err)
+	}
+
+	key := fmt.Sprintf("%s%s-%d", failJobQueuePrefix, job.JobId, time.Now().UnixNano())
+	_, err = s.client.Put(ctx, key, string(data))
+	if err != nil {
+		return fmt.Errorf("failed to enqueue failed job: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Storage) DeleteFailedJob(ctx context.Context, jobID string) error {
+	key := fmt.Sprintf("%s%s-%d", failJobQueuePrefix, jobID, time.Now().UnixNano())
+	_, err := s.client.Delete(ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to delete failed job: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Storage) EnqueueJob(ctx context.Context, job *pb.Job) error {
@@ -320,4 +347,23 @@ func (s *Storage) GetJobEvents(ctx context.Context, jobID string) ([]string, err
 	}
 
 	return events, nil
+}
+
+func (s *Storage) GetAllFailedJobs(ctx context.Context) (map[string]*pb.Job, error) {
+	resp, err := s.client.Get(ctx, failJobQueuePrefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all failed jobs: %w", err)
+	}
+
+	jobs := make(map[string]*pb.Job)
+	for _, kv := range resp.Kvs {
+		var job pb.Job
+		if err := json.Unmarshal(kv.Value, &job); err != nil {
+			log.Printf("Failed to unmarshal job: %v", err)
+			continue
+		}
+		jobs[job.JobId] = &job
+	}
+
+	return jobs, nil
 }

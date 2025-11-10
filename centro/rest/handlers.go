@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -261,36 +262,36 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 	tasks := make([]*pb.Task, 0, len(req.Tasks))
 	for _, t := range req.Tasks {
 		task := &pb.Task{
-			Name:   t.Name,
-			Driver: t.Driver,
-			Kind:   t.Kind,
-			Config: &pb.ContainerSpec{
-				Image:   t.Config.Image,
-				Command: t.Config.Command,
-				Args:    t.Config.Args,
-				Options: t.Config.Options,
+			TaskName:     t.Name,
+			DriverType:   t.Driver,
+			WorkloadType: t.Kind,
+			ContainerConfig: &pb.ContainerSpec{
+				ImageName:     t.Config.Image,
+				Entrypoint:    t.Config.Command,
+				Arguments:     t.Config.Args,
+				DriverOptions: t.Config.Options,
 			},
-			Env: t.Env,
+			EnvironmentVariables: t.Env,
 		}
 
 		// Add resources if specified
 		if t.Resources != nil {
-			task.Resources = &pb.Resources{
-				MemoryMb:        t.Resources.MemoryMB,
-				MemoryReserveMb: t.Resources.MemoryReserveMB,
-				Cpu:             t.Resources.CPU,
-				CpuReserve:      t.Resources.CPUReserve,
+			task.ResourceRequirements = &pb.Resources{
+				MemoryLimitMb:    t.Resources.MemoryMB,
+				MemoryReservedMb: t.Resources.MemoryReserveMB,
+				CpuLimitCores:    t.Resources.CPU,
+				CpuReservedCores: t.Resources.CPUReserve,
 			}
 		}
 
 		// Add volumes if specified
 		if len(t.Volumes) > 0 {
-			task.Volumes = make([]*pb.Volume, 0, len(t.Volumes))
+			task.VolumeMounts = make([]*pb.Volume, 0, len(t.Volumes))
 			for _, v := range t.Volumes {
-				task.Volumes = append(task.Volumes, &pb.Volume{
-					HostPath:      v.HostPath,
-					ContainerPath: v.ContainerPath,
-					ReadOnly:      v.ReadOnly,
+				task.VolumeMounts = append(task.VolumeMounts, &pb.Volume{
+					SourcePath: v.HostPath,
+					TargetPath: v.ContainerPath,
+					ReadOnly:   v.ReadOnly,
 				})
 			}
 		}
@@ -298,13 +299,25 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		tasks = append(tasks, task)
 	}
 
+	// Split comma-separated clusters string into array
+	var selectedClusters []string
+	if req.Datacenters != "" {
+		// Support comma-separated list
+		for _, cluster := range strings.Split(req.Datacenters, ",") {
+			cluster = strings.TrimSpace(cluster)
+			if cluster != "" {
+				selectedClusters = append(selectedClusters, cluster)
+			}
+		}
+	}
+
 	job := &pb.Job{
-		JobId:       jobID,
-		Name:        req.Name,
-		Type:        req.Type,
-		Datacenters: req.Datacenters,
-		Tasks:       tasks,
-		Meta:        req.Meta,
+		JobId:            jobID,
+		JobName:          req.Name,
+		JobType:          req.Type,
+		SelectedClusters: selectedClusters,
+		Tasks:            tasks,
+		JobMetadata:      req.Meta,
 	}
 
 	ctx := context.Background()
@@ -493,7 +506,7 @@ func (s *APIServer) handleListNodes(w http.ResponseWriter, r *http.Request) {
 			"node_id":        node.NodeID,
 			"last_heartbeat": node.LastHeartbeat,
 			"ram_mb":         node.RamMB,
-			"cpu_percent":    node.CPUPercent,
+			"cpu_cores":      node.CPUCores,
 			"disk_mb":        node.DiskMB,
 			"metadata":       node.Metadata,
 		})
@@ -538,7 +551,7 @@ func (s *APIServer) handleGetNode(w http.ResponseWriter, r *http.Request) {
 		"node_id":        node.NodeID,
 		"last_heartbeat": node.LastHeartbeat,
 		"ram_mb":         node.RamMB,
-		"cpu_percent":    node.CPUPercent,
+		"cpu_cores":      node.CPUCores,
 		"disk_mb":        node.DiskMB,
 		"metadata":       node.Metadata,
 	})

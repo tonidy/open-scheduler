@@ -12,10 +12,10 @@ import (
 )
 
 type HeartbeatService struct {
-	grpcClient *sharedgrpc.SharedClient
+	grpcClient *sharedgrpc.GrpcClient
 }
 
-func NewHeartbeatService(grpcClient *sharedgrpc.SharedClient) (*HeartbeatService, error) {
+func NewHeartbeatService(grpcClient *sharedgrpc.GrpcClient) (*HeartbeatService, error) {
 	if grpcClient == nil {
 		return nil, fmt.Errorf("gRPC client cannot be nil")
 	}
@@ -33,8 +33,8 @@ func getAvailableMemoryMB() float64 {
 	return totalMemMB - usedMemMB
 }
 
-func getCPUUsagePercent() float64 {
-	return float64(runtime.NumCPU()) * 100.0 / float64(runtime.NumCPU())
+func getAvailableCPUCores() float64 {
+	return float64(runtime.NumCPU())
 }
 
 func getAvailableDiskMB() float64 {
@@ -57,17 +57,23 @@ func getAvailableDiskMB() float64 {
 func (h *HeartbeatService) Execute(ctx context.Context, nodeID string, token string) error {
 	log.Printf("[HeartbeatService] Sending heartbeat for node: %s", nodeID)
 
+	// Get cluster name from environment variable, default to "default"
+	clusterName := os.Getenv("CLUSTER_NAME")
+	if clusterName == "" {
+		clusterName = "default"
+	}
+
 	metadata := map[string]string{
 		"version": "1.0.0",
 		"region":  "us-west-1",
 	}
 
 	ramAvailable := getAvailableMemoryMB()
-	cpuAvailable := getCPUUsagePercent()
+	cpuAvailable := getAvailableCPUCores()
 	diskAvailable := getAvailableDiskMB()
 
-	log.Printf("[HeartbeatService] System metrics - RAM: %.2f MB, CPU: %.2f%%, Disk: %.2f MB",
-		ramAvailable, cpuAvailable, diskAvailable)
+	log.Printf("[HeartbeatService] System metrics - Cluster: %s, RAM: %.2f MB, CPU: %.2f cores, Disk: %.2f MB",
+		clusterName, ramAvailable, cpuAvailable, diskAvailable)
 
 	resp, err := h.grpcClient.SendHeartbeat(
 		ctx,
@@ -76,6 +82,7 @@ func (h *HeartbeatService) Execute(ctx context.Context, nodeID string, token str
 		float32(ramAvailable),
 		float32(cpuAvailable),
 		float32(diskAvailable),
+		clusterName,
 		metadata,
 	)
 
@@ -83,10 +90,10 @@ func (h *HeartbeatService) Execute(ctx context.Context, nodeID string, token str
 		return fmt.Errorf("heartbeat failed: %w", err)
 	}
 
-	if !resp.Ok {
-		return fmt.Errorf("heartbeat rejected: %s", resp.Message)
+	if !resp.Acknowledged {
+		return fmt.Errorf("heartbeat rejected: %s", resp.ResponseMessage)
 	}
 
-	log.Printf("[HeartbeatService] Heartbeat successful: %s", resp.Message)
+	log.Printf("[HeartbeatService] Heartbeat successful: %s", resp.ResponseMessage)
 	return nil
 }

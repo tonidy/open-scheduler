@@ -12,7 +12,7 @@ type HeartbeatCommand struct {
 	service *heartbeat.HeartbeatService
 }
 
-func NewHeartbeatCommand(grpcClient *agentgrpc.SharedClient) *HeartbeatCommand {
+func NewHeartbeatCommand(grpcClient *agentgrpc.GrpcClient) *HeartbeatCommand {
 	service, err := heartbeat.NewHeartbeatService(grpcClient)
 	if err != nil {
 		log.Fatalf("[HeartbeatCommand] Failed to create service: %v", err)

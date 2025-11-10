@@ -14,33 +14,33 @@ import (
 	pb "github.com/open-scheduler/proto"
 )
 
-type SharedClient struct {
+type GrpcClient struct {
 	serverAddr string
 	conn       *grpc.ClientConn
-	client     pb.NodeAgentServiceClient
+	client     pb.CentroSchedulerServiceClient
 	mu         sync.RWMutex
 }
 
-func NewSharedClient(serverAddr string) (*SharedClient, error) {
+func NewGrpcClient(serverAddr string) (*GrpcClient, error) {
 	if serverAddr == "" {
 		return nil, fmt.Errorf("server address cannot be empty")
 	}
 
-	return &SharedClient{
+	return &GrpcClient{
 		serverAddr: serverAddr,
 	}, nil
 }
 
-func (c *SharedClient) Connect(ctx context.Context) error {
+func (c *GrpcClient) Connect(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.conn != nil && c.client != nil {
-		log.Printf("[SharedClient] Already connected to server")
+		log.Printf("[GrpcClient] Already connected to server")
 		return nil
 	}
 
-	log.Printf("[SharedClient] Connecting to server at %s", c.serverAddr)
+	log.Printf("[GrpcClient] Connecting to server at %s", c.serverAddr)
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -56,13 +56,13 @@ func (c *SharedClient) Connect(ctx context.Context) error {
 	}
 
 	c.conn = conn
-	c.client = pb.NewNodeAgentServiceClient(conn)
-	log.Printf("[SharedClient] Successfully connected to server")
+	c.client = pb.NewCentroSchedulerServiceClient(conn)
+	log.Printf("[GrpcClient] Successfully connected to server")
 
 	return nil
 }
 
-func (c *SharedClient) SendHeartbeat(ctx context.Context, nodeID string, token string, ramMB, cpuPercent, diskMB float32, meta map[string]string) (*pb.HeartbeatResponse, error) {
+func (c *GrpcClient) SendHeartbeat(ctx context.Context, nodeID string, token string, ramMB, cpuCores, diskMB float32, clusterName string, meta map[string]string) (*pb.HeartbeatResponse, error) {
 	c.mu.RLock()
 	client := c.client
 	c.mu.RUnlock()
@@ -77,12 +77,13 @@ func (c *SharedClient) SendHeartbeat(ctx context.Context, nodeID string, token s
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	req := &pb.HeartbeatRequest{
-		NodeId:     nodeID,
-		Timestamp:  time.Now().Unix(),
-		RamMb:      ramMB,
-		CpuPercent: cpuPercent,
-		DiskMb:     diskMB,
-		Metadata:   meta,
+		NodeId:            nodeID,
+		Timestamp:         time.Now().Unix(),
+		AvailableMemoryMb: ramMB,
+		AvailableCpuCores: cpuCores,
+		AvailableDiskMb:   diskMB,
+		NodeMetadata:      meta,
+		ClusterName:       clusterName,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -93,12 +94,12 @@ func (c *SharedClient) SendHeartbeat(ctx context.Context, nodeID string, token s
 		return nil, fmt.Errorf("heartbeat RPC failed: %w", err)
 	}
 
-	log.Printf("[SharedClient] Heartbeat response: ok=%v, message=%s", resp.Ok, resp.Message)
+	log.Printf("[GrpcClient] Heartbeat response: acknowledged=%v, message=%s", resp.Acknowledged, resp.ResponseMessage)
 
 	return resp, nil
 }
 
-func (c *SharedClient) GetJob(ctx context.Context, nodeID string, token string) (*pb.GetJobResponse, error) {
+func (c *GrpcClient) GetJob(ctx context.Context, nodeID string, token string) (*pb.GetJobResponse, error) {
 	c.mu.RLock()
 	client := c.client
 	c.mu.RUnlock()
@@ -124,46 +125,17 @@ func (c *SharedClient) GetJob(ctx context.Context, nodeID string, token string) 
 		return nil, fmt.Errorf("GetJob RPC failed: %w", err)
 	}
 
-	if resp.HasJob {
-		log.Printf("[SharedClient] Received job: job_id=%s, name=%s, type=%s",
-			resp.Job.JobId, resp.Job.Name, resp.Job.Type)
+	if resp.JobAvailable {
+		log.Printf("[GrpcClient] Received job: job_id=%s, name=%s, type=%s",
+			resp.Job.JobId, resp.Job.JobName, resp.Job.JobType)
 	} else {
-		log.Printf("[SharedClient] No job available: %s", resp.Message)
+		log.Printf("[GrpcClient] No job available: %s", resp.ResponseMessage)
 	}
 
 	return resp, nil
 }
 
-func (c *SharedClient) ClaimJob(ctx context.Context, nodeID string, jobID string, token string) (*pb.ClaimJobResponse, error) {
-	c.mu.RLock()
-	client := c.client
-	c.mu.RUnlock()
-
-	if client == nil {
-		return nil, fmt.Errorf("gRPC client is not connected")
-	}
-
-	md := metadata.New(map[string]string{
-		"authorization": fmt.Sprintf("Bearer %s", token),
-	})
-	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	req := &pb.ClaimJobRequest{
-		NodeId: nodeID,
-		JobId: jobID,
-	}
-
-	resp, err := client.ClaimJob(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("ClaimJob RPC failed: %w", err)
-	}
-
-	log.Printf("[SharedClient] ClaimJob response: ok=%v, message=%s", resp.Ok, resp.Message)
-
-	return resp, nil
-}
-
-func (c *SharedClient) UpdateStatus(ctx context.Context, nodeID string, token string, jobID string, status string, detail string, timestamp int64) (*pb.UpdateStatusResponse, error) {
+func (c *GrpcClient) UpdateStatus(ctx context.Context, nodeID string, token string, jobID string, status string, detail string, timestamp int64) (*pb.UpdateStatusResponse, error) {
 	c.mu.RLock()
 	client := c.client
 	c.mu.RUnlock()
@@ -178,11 +150,11 @@ func (c *SharedClient) UpdateStatus(ctx context.Context, nodeID string, token st
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	req := &pb.UpdateStatusRequest{
-		NodeId:    nodeID,
-		JobId:     jobID,
-		Status:    status,
-		Detail:    detail,
-		Timestamp: timestamp,
+		NodeId:        nodeID,
+		JobId:         jobID,
+		JobStatus:     status,
+		StatusMessage: detail,
+		Timestamp:     timestamp,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -193,17 +165,17 @@ func (c *SharedClient) UpdateStatus(ctx context.Context, nodeID string, token st
 		return nil, fmt.Errorf("UpdateStatus RPC failed: %w", err)
 	}
 
-	log.Printf("[SharedClient] UpdateStatus response: ok=%v, message=%s", resp.Ok, resp.Message)
+	log.Printf("[GrpcClient] UpdateStatus response: acknowledged=%v, message=%s", resp.Acknowledged, resp.ResponseMessage)
 
 	return resp, nil
 }
 
-func (c *SharedClient) Close() error {
+func (c *GrpcClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.conn != nil {
-		log.Printf("[SharedClient] Closing connection")
+		log.Printf("[GrpcClient] Closing connection")
 		err := c.conn.Close()
 		c.conn = nil
 		c.client = nil
@@ -212,7 +184,7 @@ func (c *SharedClient) Close() error {
 	return nil
 }
 
-func (c *SharedClient) IsConnected() bool {
+func (c *GrpcClient) IsConnected() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.conn != nil && c.client != nil

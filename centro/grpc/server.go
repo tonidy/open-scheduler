@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	etcdstorage "github.com/open-scheduler/centro/storage/etcd"
@@ -11,7 +12,7 @@ import (
 )
 
 type CentroServer struct {
-	pb.UnimplementedNodeAgentServiceServer
+	pb.UnimplementedCentroSchedulerServiceServer
 	storage *etcdstorage.Storage
 }
 
@@ -47,11 +48,157 @@ func (s *CentroServer) monitorNodes() {
 	}
 }
 
+// calculateJobResourceRequirements calculates the total resource requirements for all tasks in a job
+// Returns: (cpuCores, ramMB, diskMB)
+func calculateJobResourceRequirements(job *pb.Job) (float32, float32, float32) {
+	var totalCPU float32
+	var totalRAM float32
+	var totalDisk float32 = 0 // Disk requirements are not typically per-task, but we'll keep this for consistency
+
+	for _, task := range job.Tasks {
+		if task.ResourceRequirements != nil {
+			// Use cpu_limit_cores if set, otherwise use cpu_reserved_cores
+			if task.ResourceRequirements.CpuLimitCores > 0 {
+				totalCPU += float32(task.ResourceRequirements.CpuLimitCores)
+			} else if task.ResourceRequirements.CpuReservedCores > 0 {
+				totalCPU += float32(task.ResourceRequirements.CpuReservedCores)
+			}
+
+			// Use memory_limit_mb if set, otherwise use memory_reserved_mb
+			if task.ResourceRequirements.MemoryLimitMb > 0 {
+				totalRAM += float32(task.ResourceRequirements.MemoryLimitMb)
+			} else if task.ResourceRequirements.MemoryReservedMb > 0 {
+				totalRAM += float32(task.ResourceRequirements.MemoryReservedMb)
+			}
+		}
+	}
+
+	return totalCPU, totalRAM, totalDisk
+}
+
+// nodeHasSufficientResources checks if a node has enough available resources for a job
+// Note: Node.CPUCores is available CPU in cores, Node.RamMB and Node.DiskMB are available amounts
+func nodeHasSufficientResources(node *etcdstorage.NodeInfo, requiredCPUCores, requiredRAMMB, requiredDiskMB float32) bool {
+	// Check CPU availability (direct comparison in cores)
+	if requiredCPUCores > node.CPUCores {
+		log.Printf("[Centro] Insufficient CPU: required %.2f cores, available %.2f cores",
+			requiredCPUCores, node.CPUCores)
+		return false
+	}
+
+	// Check RAM availability
+	if requiredRAMMB > node.RamMB {
+		log.Printf("[Centro] Insufficient RAM: required %.2fMB, available %.2fMB",
+			requiredRAMMB, node.RamMB)
+		return false
+	}
+
+	// Check Disk availability (only if required)
+	if requiredDiskMB > 0 && requiredDiskMB > node.DiskMB {
+		log.Printf("[Centro] Insufficient Disk: required %.2fMB, available %.2fMB",
+			requiredDiskMB, node.DiskMB)
+		return false
+	}
+
+	return true
+}
+
+// handleJobRejection handles when a job is rejected by a node, checks if any other nodes could take it,
+// and saves detailed rejection events if no nodes are suitable
+func (s *CentroServer) handleJobRejection(ctx context.Context, job *pb.Job, rejectedByNodeID, rejectionReason string, requiredCPU, requiredRAM, requiredDisk float32) {
+	// Get all nodes to check if any could potentially take this job
+	allNodes, err := s.storage.GetAllNodes(ctx)
+	if err != nil {
+		log.Printf("[Centro] Failed to get all nodes: %v", err)
+		// Re-queue the job anyway
+		if err := s.storage.EnqueueJob(ctx, job); err != nil {
+			log.Printf("[Centro] Failed to re-queue job: %v", err)
+		}
+		return
+	}
+
+	// Build a list of rejection reasons for all nodes
+	rejectionReasons := make(map[string]string)
+	rejectionReasons[rejectedByNodeID] = rejectionReason
+
+	hasHealthyMatchingNode := false
+	for nodeID, node := range allNodes {
+		// Skip the node that just rejected it (already have its reason)
+		if nodeID == rejectedByNodeID {
+			continue
+		}
+
+		// Check if node is healthy
+		if !node.IsHealthy() {
+			rejectionReasons[nodeID] = fmt.Sprintf("Node unhealthy (last heartbeat: %v)", node.LastHeartbeat)
+			continue
+		}
+
+		// Check cluster match
+		if len(job.SelectedClusters) > 0 {
+			clusterMatches := false
+			for _, cluster := range job.SelectedClusters {
+				if cluster == node.ClusterName {
+					clusterMatches = true
+					break
+				}
+			}
+			if !clusterMatches {
+				rejectionReasons[nodeID] = fmt.Sprintf("Cluster mismatch: job requires %v, node is in '%s'",
+					job.SelectedClusters, node.ClusterName)
+				continue
+			}
+		}
+
+		// Check resources
+		if !nodeHasSufficientResources(node, requiredCPU, requiredRAM, requiredDisk) {
+			rejectionReasons[nodeID] = fmt.Sprintf("Insufficient resources: job needs CPU=%.2f cores, RAM=%.2fMB, Disk=%.2fMB; node has CPU=%.2f cores, RAM=%.2fMB, Disk=%.2fMB",
+				requiredCPU, requiredRAM, requiredDisk, node.CPUCores, node.RamMB, node.DiskMB)
+			continue
+		}
+
+		// This node could potentially take the job
+		hasHealthyMatchingNode = true
+		break
+	}
+
+	// If no nodes can take this job, save a detailed event
+	if !hasHealthyMatchingNode {
+		var eventMessage strings.Builder
+		eventMessage.WriteString(fmt.Sprintf("[%s] No matching nodes available for job %s\n",
+			time.Now().Format(time.RFC3339), job.JobId))
+		eventMessage.WriteString(fmt.Sprintf("Job requirements: CPU=%.2f cores, RAM=%.2fMB, Disk=%.2fMB",
+			requiredCPU, requiredRAM, requiredDisk))
+		if len(job.SelectedClusters) > 0 {
+			eventMessage.WriteString(fmt.Sprintf(", Clusters=%v", job.SelectedClusters))
+		}
+		eventMessage.WriteString("\n\nRejection reasons by node:\n")
+
+		for nodeID, reason := range rejectionReasons {
+			eventMessage.WriteString(fmt.Sprintf("  - Node '%s': %s\n", nodeID, reason))
+		}
+
+		if err := s.storage.SaveJobEvent(ctx, job.JobId, eventMessage.String()); err != nil {
+			log.Printf("[Centro] Failed to save 'no matching nodes' event: %v", err)
+		}
+
+		log.Printf("[Centro] Job %s has no matching nodes. Rejection reasons saved to events.", job.JobId)
+		if err := s.storage.EnqueueFailedJob(ctx, job); err != nil {
+			log.Printf("[Centro] Failed to enqueue failed job: %v", err)
+		}		
+	} else {
+
+		if err := s.storage.EnqueueJob(ctx, job); err != nil {
+			log.Printf("[Centro] Failed to re-queue job: %v", err)
+		}
+	}
+}
+
 func (s *CentroServer) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.HeartbeatResponse, error) {
 	if req.NodeId == "" {
 		return &pb.HeartbeatResponse{
-			Ok:      false,
-			Message: "node_id is required",
+			Acknowledged:    false,
+			ResponseMessage: "node_id is required",
 		}, nil
 	}
 
@@ -59,44 +206,48 @@ func (s *CentroServer) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) 
 	if err != nil {
 		log.Printf("[Centro] Failed to get node: %v", err)
 		return &pb.HeartbeatResponse{
-			Ok:      false,
-			Message: "Failed to get node info",
+			Acknowledged:    false,
+			ResponseMessage: "Failed to get node info",
 		}, nil
 	}
 
 	if node == nil {
-		log.Printf("[Centro] New node registered: %s", req.NodeId)
-		node = &etcdstorage.NodeInfo{NodeID: req.NodeId}
+		log.Printf("[Centro] New node registered: %s (cluster: %s)", req.NodeId, req.ClusterName)
+		node = &etcdstorage.NodeInfo{
+			NodeID:      req.NodeId,
+			ClusterName: req.ClusterName,
+		}
 	}
 
 	node.LastHeartbeat = time.Now()
-	node.RamMB = req.RamMb
-	node.CPUPercent = req.CpuPercent
-	node.DiskMB = req.DiskMb
-	node.Metadata = req.Metadata
+	node.ClusterName = req.ClusterName
+	node.RamMB = req.AvailableMemoryMb
+	node.CPUCores = req.AvailableCpuCores
+	node.DiskMB = req.AvailableDiskMb
+	node.Metadata = req.NodeMetadata
 
 	if err := s.storage.SaveNode(ctx, node); err != nil {
 		log.Printf("[Centro] Failed to save node: %v", err)
 		return &pb.HeartbeatResponse{
-			Ok:      false,
-			Message: "Failed to save node info",
+			Acknowledged:    false,
+			ResponseMessage: "Failed to save node info",
 		}, nil
 	}
 
-	log.Printf("[Centro] Heartbeat from node %s - CPU: %.2f%%, RAM: %.2fMB, Disk: %.2fMB",
-		req.NodeId, req.CpuPercent, req.RamMb, req.DiskMb)
+	log.Printf("[Centro] Heartbeat from node %s - CPU: %.2f cores, RAM: %.2fMB, Disk: %.2fMB",
+		req.NodeId, req.AvailableCpuCores, req.AvailableMemoryMb, req.AvailableDiskMb)
 
 	return &pb.HeartbeatResponse{
-		Ok:      true,
-		Message: "Heartbeat received",
+		Acknowledged:    true,
+		ResponseMessage: "Heartbeat received",
 	}, nil
 }
 
 func (s *CentroServer) GetJob(ctx context.Context, req *pb.GetJobRequest) (*pb.GetJobResponse, error) {
 	if req.NodeId == "" {
 		return &pb.GetJobResponse{
-			HasJob:  false,
-			Message: "node_id is required",
+			JobAvailable:    false,
+			ResponseMessage: "node_id is required",
 		}, nil
 	}
 
@@ -104,15 +255,25 @@ func (s *CentroServer) GetJob(ctx context.Context, req *pb.GetJobRequest) (*pb.G
 	if err != nil {
 		log.Printf("[Centro] Failed to get node: %v", err)
 		return &pb.GetJobResponse{
-			HasJob:  false,
-			Message: "Failed to get node info",
+			JobAvailable:    false,
+			ResponseMessage: "Failed to get node info",
 		}, nil
 	}
 
 	if node == nil {
 		return &pb.GetJobResponse{
-			HasJob:  false,
-			Message: "Node not registered. Send a heartbeat first.",
+			JobAvailable:    false,
+			ResponseMessage: "Node not registered. Send a heartbeat first.",
+		}, nil
+	}
+
+	// Check if node is healthy based on last heartbeat
+	if !node.IsHealthy() {
+		log.Printf("[Centro] Node %s is not healthy (last heartbeat: %v) - rejecting job request",
+			req.NodeId, node.LastHeartbeat)
+		return &pb.GetJobResponse{
+			JobAvailable:    false,
+			ResponseMessage: fmt.Sprintf("Node is not healthy. Last heartbeat: %v", node.LastHeartbeat),
 		}, nil
 	}
 
@@ -120,19 +281,65 @@ func (s *CentroServer) GetJob(ctx context.Context, req *pb.GetJobRequest) (*pb.G
 	if err != nil {
 		log.Printf("[Centro] Failed to dequeue job: %v", err)
 		return &pb.GetJobResponse{
-			HasJob:  false,
-			Message: "Failed to get job from queue",
+			JobAvailable:    false,
+			ResponseMessage: "Failed to get job from queue",
 		}, nil
 	}
 
 	if job == nil {
 		return &pb.GetJobResponse{
-			HasJob:  false,
-			Message: "No jobs available",
+			JobAvailable:    false,
+			ResponseMessage: "No jobs available",
 		}, nil
 	}
 
-	log.Printf("[Centro] Assigning job %s to node %s", job.JobId, req.NodeId)
+	// Calculate job resource requirements
+	requiredCPU, requiredRAM, requiredDisk := calculateJobResourceRequirements(job)
+
+	// Check if job has cluster requirements and if node matches
+	var rejectionReason string
+	if len(job.SelectedClusters) > 0 {
+		log.Printf("[Centro] Job %s has cluster requirements: %v", job.JobId, job.SelectedClusters)
+		clusterMatches := false
+		for _, cluster := range job.SelectedClusters {
+			if cluster == node.ClusterName {
+				clusterMatches = true
+				break
+			}
+		}
+		// log.Printf("[Centro] Cluster matches: %v, node cluster: %s", clusterMatches, node.ClusterName)
+		if !clusterMatches {
+			rejectionReason = fmt.Sprintf("Cluster mismatch: job requires %v, node is in '%s'",
+				job.SelectedClusters, node.ClusterName)
+			log.Printf("[Centro] Job %s rejected by node %s: %s", job.JobId, req.NodeId, rejectionReason)
+
+			// Check if any other nodes could potentially take this job
+			s.handleJobRejection(ctx, job, req.NodeId, rejectionReason, requiredCPU, requiredRAM, requiredDisk)
+
+			return &pb.GetJobResponse{
+				JobAvailable:    false,
+				ResponseMessage: fmt.Sprintf("No matching jobs for cluster: %s", node.ClusterName),
+			}, nil
+		}
+	}
+
+	// Check if node has sufficient resources for the job
+	if !nodeHasSufficientResources(node, requiredCPU, requiredRAM, requiredDisk) {
+		rejectionReason = fmt.Sprintf("Insufficient resources: job needs CPU=%.2f cores, RAM=%.2fMB, Disk=%.2fMB; node has CPU=%.2f cores, RAM=%.2fMB, Disk=%.2fMB",
+			requiredCPU, requiredRAM, requiredDisk, node.CPUCores, node.RamMB, node.DiskMB)
+		log.Printf("[Centro] Job %s rejected by node %s: %s", job.JobId, req.NodeId, rejectionReason)
+
+		// Check if any other nodes could potentially take this job
+		s.handleJobRejection(ctx, job, req.NodeId, rejectionReason, requiredCPU, requiredRAM, requiredDisk)
+
+		return &pb.GetJobResponse{
+			JobAvailable:    false,
+			ResponseMessage: "Insufficient resources on node for available jobs",
+		}, nil
+	}
+
+	log.Printf("[Centro] Assigning job %s to node %s (cluster: %s) - Job requires CPU: %.2f cores, RAM: %.2fMB, Disk: %.2fMB",
+		job.JobId, req.NodeId, node.ClusterName, requiredCPU, requiredRAM, requiredDisk)
 
 	jobStatus := &etcdstorage.JobStatus{
 		Job:       job,
@@ -151,91 +358,24 @@ func (s *CentroServer) GetJob(ctx context.Context, req *pb.GetJobRequest) (*pb.G
 	}
 
 	return &pb.GetJobResponse{
-		HasJob:  true,
-		Job:     job,
-		Message: fmt.Sprintf("Job %s assigned", job.JobId),
-	}, nil
-}
-
-func (s *CentroServer) ClaimJob(ctx context.Context, req *pb.ClaimJobRequest) (*pb.ClaimJobResponse, error) {
-	if req.NodeId == "" {
-		return &pb.ClaimJobResponse{
-			Ok:      false,
-			Message: "node_id is required",
-		}, nil
-	}
-
-	if req.JobId == "" {
-		return &pb.ClaimJobResponse{
-			Ok:      false,
-			Message: "job_id is required",
-		}, nil
-	}
-
-	existing, err := s.storage.GetJobActive(ctx, req.JobId)
-	if err != nil {
-		log.Printf("[Centro] Failed to get active job: %v", err)
-		return &pb.ClaimJobResponse{
-			Ok:      false,
-			Message: "Failed to check job status",
-		}, nil
-	}
-
-	if existing != nil {
-		if existing.NodeID == req.NodeId {
-			return &pb.ClaimJobResponse{
-				Ok:      true,
-				Message: "Job already claimed by this node",
-			}, nil
-		}
-		return &pb.ClaimJobResponse{
-			Ok:      false,
-			Message: fmt.Sprintf("Job already claimed by node %s", existing.NodeID),
-		}, nil
-	}
-
-	job, _ := s.storage.GetJobActive(ctx, req.JobId)
-	var jobData *pb.Job
-	if job != nil {
-		jobData = job.Job
-	}
-
-	jobStatus := &etcdstorage.JobStatus{
-		Job:       jobData,
-		NodeID:    req.NodeId,
-		Status:    "claimed",
-		ClaimedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	if err := s.storage.SaveJobActive(ctx, req.JobId, jobStatus); err != nil {
-		log.Printf("[Centro] Failed to save job claim: %v", err)
-		return &pb.ClaimJobResponse{
-			Ok:      false,
-			Message: "Failed to claim job",
-		}, nil
-	}
-
-	log.Printf("[Centro] Job %s claimed by node %s", req.JobId, req.NodeId)
-
-	return &pb.ClaimJobResponse{
-		Ok:      true,
-		Message: "Job claimed successfully",
+		JobAvailable:    true,
+		Job:             job,
+		ResponseMessage: fmt.Sprintf("Job %s assigned", job.JobId),
 	}, nil
 }
 
 func (s *CentroServer) UpdateStatus(ctx context.Context, req *pb.UpdateStatusRequest) (*pb.UpdateStatusResponse, error) {
 	if req.NodeId == "" {
 		return &pb.UpdateStatusResponse{
-			Ok:      false,
-			Message: "node_id is required",
+			Acknowledged:    false,
+			ResponseMessage: "node_id is required",
 		}, nil
 	}
 
 	if req.JobId == "" {
 		return &pb.UpdateStatusResponse{
-			Ok:      false,
-			Message: "job_id is required",
+			Acknowledged:    false,
+			ResponseMessage: "job_id is required",
 		}, nil
 	}
 
@@ -243,8 +383,8 @@ func (s *CentroServer) UpdateStatus(ctx context.Context, req *pb.UpdateStatusReq
 	if err != nil {
 		log.Printf("[Centro] Failed to get active job: %v", err)
 		return &pb.UpdateStatusResponse{
-			Ok:      false,
-			Message: "Failed to get job status",
+			Acknowledged:    false,
+			ResponseMessage: "Failed to get job status",
 		}, nil
 	}
 
@@ -255,23 +395,23 @@ func (s *CentroServer) UpdateStatus(ctx context.Context, req *pb.UpdateStatusReq
 		}
 	}
 
-	jobStatus.Status = req.Status
-	jobStatus.Detail = req.Detail
+	jobStatus.Status = req.JobStatus
+	jobStatus.Detail = req.StatusMessage
 	jobStatus.UpdatedAt = time.Now()
 
-	if err := s.storage.SaveJobEvent(ctx, req.JobId, fmt.Sprintf("[%s] Status: %s - %s", time.Now().Format(time.RFC3339), req.Status, req.Detail)); err != nil {
+	if err := s.storage.SaveJobEvent(ctx, req.JobId, fmt.Sprintf("[%s] Status: %s - %s", time.Now().Format(time.RFC3339), req.JobStatus, req.StatusMessage)); err != nil {
 		log.Printf("[Centro] Failed to save job event: %v", err)
 	}
 
 	log.Printf("[Centro] Job %s status update from node %s: %s - %s",
-		req.JobId, req.NodeId, req.Status, req.Detail)
+		req.JobId, req.NodeId, req.JobStatus, req.StatusMessage)
 
-	if req.Status == "completed" || req.Status == "failed" {
+	if req.JobStatus == "completed" || req.JobStatus == "failed" {
 		if err := s.storage.SaveJobHistory(ctx, req.JobId, jobStatus); err != nil {
 			log.Printf("[Centro] Failed to save job history: %v", err)
 			return &pb.UpdateStatusResponse{
-				Ok:      false,
-				Message: "Failed to save job history",
+				Acknowledged:    false,
+				ResponseMessage: "Failed to save job history",
 			}, nil
 		}
 
@@ -279,20 +419,20 @@ func (s *CentroServer) UpdateStatus(ctx context.Context, req *pb.UpdateStatusReq
 			log.Printf("[Centro] Failed to delete active job: %v", err)
 		}
 
-		log.Printf("[Centro] Job %s finished with status: %s", req.JobId, req.Status)
+		log.Printf("[Centro] Job %s finished with status: %s", req.JobId, req.JobStatus)
 	} else {
 		if err := s.storage.SaveJobActive(ctx, req.JobId, jobStatus); err != nil {
 			log.Printf("[Centro] Failed to save job status: %v", err)
 			return &pb.UpdateStatusResponse{
-				Ok:      false,
-				Message: "Failed to save job status",
+				Acknowledged:    false,
+				ResponseMessage: "Failed to save job status",
 			}, nil
 		}
 	}
 
 	return &pb.UpdateStatusResponse{
-		Ok:      true,
-		Message: "Status updated successfully",
+		Acknowledged:    true,
+		ResponseMessage: "Status updated successfully",
 	}, nil
 }
 

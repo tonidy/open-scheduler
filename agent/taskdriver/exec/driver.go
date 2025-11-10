@@ -24,28 +24,28 @@ func NewExecDriver() *ExecDriver {
 }
 
 func (d *ExecDriver) Run(ctx context.Context, task *pb.Task) error {
-	log.Printf("[ExecDriver] Running task: %s", task.Name)
+	log.Printf("[ExecDriver] Running task: %s", task.TaskName)
 
 	// Build command
 	var cmd *exec.Cmd
-	if len(task.Config.Command) == 0 {
-		return fmt.Errorf("no command specified for task %s", task.Name)
+	if len(task.ContainerConfig.Entrypoint) == 0 {
+		return fmt.Errorf("no command specified for task %s", task.TaskName)
 	}
 
 	// Create command with args
-	if len(task.Config.Args) > 0 {
-		cmdArgs := append(task.Config.Command[1:], task.Config.Args...)
-		cmd = exec.CommandContext(ctx, task.Config.Command[0], cmdArgs...)
-	} else if len(task.Config.Command) > 1 {
-		cmd = exec.CommandContext(ctx, task.Config.Command[0], task.Config.Command[1:]...)
+	if len(task.ContainerConfig.Arguments) > 0 {
+		cmdArgs := append(task.ContainerConfig.Entrypoint[1:], task.ContainerConfig.Arguments...)
+		cmd = exec.CommandContext(ctx, task.ContainerConfig.Entrypoint[0], cmdArgs...)
+	} else if len(task.ContainerConfig.Entrypoint) > 1 {
+		cmd = exec.CommandContext(ctx, task.ContainerConfig.Entrypoint[0], task.ContainerConfig.Entrypoint[1:]...)
 	} else {
-		cmd = exec.CommandContext(ctx, task.Config.Command[0])
+		cmd = exec.CommandContext(ctx, task.ContainerConfig.Entrypoint[0])
 	}
 
 	// Set environment variables
-	if len(task.Env) > 0 {
+	if len(task.EnvironmentVariables) > 0 {
 		env := os.Environ()
-		for k, v := range task.Env {
+		for k, v := range task.EnvironmentVariables {
 			env = append(env, fmt.Sprintf("%s=%s", k, v))
 		}
 		cmd.Env = env
@@ -57,14 +57,14 @@ func (d *ExecDriver) Run(ctx context.Context, task *pb.Task) error {
 	cmd.Stdin = os.Stdin
 
 	// Start the command
-	log.Printf("[ExecDriver] Starting command: %v", task.Config.Command)
+	log.Printf("[ExecDriver] Starting command: %v", task.ContainerConfig.Entrypoint)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start command: %w", err)
 	}
 
 	// Store process
 	d.mu.Lock()
-	d.processes[task.Name] = cmd.Process
+	d.processes[task.TaskName] = cmd.Process
 	d.mu.Unlock()
 
 	log.Printf("[ExecDriver] Command started with PID: %d", cmd.Process.Pid)
@@ -73,13 +73,13 @@ func (d *ExecDriver) Run(ctx context.Context, task *pb.Task) error {
 	go func() {
 		err := cmd.Wait()
 		d.mu.Lock()
-		delete(d.processes, task.Name)
+		delete(d.processes, task.TaskName)
 		d.mu.Unlock()
 
 		if err != nil {
-			log.Printf("[ExecDriver] Command failed for task %s: %v", task.Name, err)
+			log.Printf("[ExecDriver] Command failed for task %s: %v", task.TaskName, err)
 		} else {
-			log.Printf("[ExecDriver] Command completed successfully for task %s", task.Name)
+			log.Printf("[ExecDriver] Command completed successfully for task %s", task.TaskName)
 		}
 	}()
 

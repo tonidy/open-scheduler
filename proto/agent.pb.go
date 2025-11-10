@@ -21,17 +21,18 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Heartbeat message sent from NodeAgent to ControlPlane
+// Heartbeat message sent from Agent (Data Plane) to Centro (Control Plane)
 type HeartbeatRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	Timestamp     int64                  `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	RamMb         float32                `protobuf:"fixed32,3,opt,name=ram_mb,json=ramMb,proto3" json:"ram_mb,omitempty"`                // Available RAM in MB
-	CpuPercent    float32                `protobuf:"fixed32,4,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"` // Available CPU in percent
-	DiskMb        float32                `protobuf:"fixed32,5,opt,name=disk_mb,json=diskMb,proto3" json:"disk_mb,omitempty"`             // Available Disk in MB
-	Metadata      map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	NodeId            string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Timestamp         int64                  `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	AvailableMemoryMb float32                `protobuf:"fixed32,3,opt,name=available_memory_mb,json=availableMemoryMb,proto3" json:"available_memory_mb,omitempty"`                                                        // Available RAM in MB
+	AvailableCpuCores float32                `protobuf:"fixed32,4,opt,name=available_cpu_cores,json=availableCpuCores,proto3" json:"available_cpu_cores,omitempty"`                                                        // Available CPU in cores (e.g., 4.0 = 4 cores, 2.5 = 2.5 cores)
+	AvailableDiskMb   float32                `protobuf:"fixed32,5,opt,name=available_disk_mb,json=availableDiskMb,proto3" json:"available_disk_mb,omitempty"`                                                              // Available disk space in MB
+	NodeMetadata      map[string]string      `protobuf:"bytes,6,rep,name=node_metadata,json=nodeMetadata,proto3" json:"node_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Additional node metadata
+	ClusterName       string                 `protobuf:"bytes,7,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`                                                                              // Cluster this node belongs to
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *HeartbeatRequest) Reset() {
@@ -78,40 +79,47 @@ func (x *HeartbeatRequest) GetTimestamp() int64 {
 	return 0
 }
 
-func (x *HeartbeatRequest) GetRamMb() float32 {
+func (x *HeartbeatRequest) GetAvailableMemoryMb() float32 {
 	if x != nil {
-		return x.RamMb
+		return x.AvailableMemoryMb
 	}
 	return 0
 }
 
-func (x *HeartbeatRequest) GetCpuPercent() float32 {
+func (x *HeartbeatRequest) GetAvailableCpuCores() float32 {
 	if x != nil {
-		return x.CpuPercent
+		return x.AvailableCpuCores
 	}
 	return 0
 }
 
-func (x *HeartbeatRequest) GetDiskMb() float32 {
+func (x *HeartbeatRequest) GetAvailableDiskMb() float32 {
 	if x != nil {
-		return x.DiskMb
+		return x.AvailableDiskMb
 	}
 	return 0
 }
 
-func (x *HeartbeatRequest) GetMetadata() map[string]string {
+func (x *HeartbeatRequest) GetNodeMetadata() map[string]string {
 	if x != nil {
-		return x.Metadata
+		return x.NodeMetadata
 	}
 	return nil
 }
 
+func (x *HeartbeatRequest) GetClusterName() string {
+	if x != nil {
+		return x.ClusterName
+	}
+	return ""
+}
+
 type HeartbeatResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Acknowledged    bool                   `protobuf:"varint,1,opt,name=acknowledged,proto3" json:"acknowledged,omitempty"`
+	ResponseMessage string                 `protobuf:"bytes,2,opt,name=response_message,json=responseMessage,proto3" json:"response_message,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *HeartbeatResponse) Reset() {
@@ -144,21 +152,21 @@ func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *HeartbeatResponse) GetOk() bool {
+func (x *HeartbeatResponse) GetAcknowledged() bool {
 	if x != nil {
-		return x.Ok
+		return x.Acknowledged
 	}
 	return false
 }
 
-func (x *HeartbeatResponse) GetMessage() string {
+func (x *HeartbeatResponse) GetResponseMessage() string {
 	if x != nil {
-		return x.Message
+		return x.ResponseMessage
 	}
 	return ""
 }
 
-// Request to get a job from the ControlPlane
+// Request from Agent to get an available job from Centro
 type GetJobRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
@@ -205,15 +213,15 @@ func (x *GetJobRequest) GetNodeId() string {
 
 // Job specification, inspired by Nomad job spec (simplified)
 type Job struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
-	Datacenters   string                 `protobuf:"bytes,4,opt,name=datacenters,proto3" json:"datacenters,omitempty"` // comma-separated, for simplicity
-	Tasks         []*Task                `protobuf:"bytes,5,rep,name=tasks,proto3" json:"tasks,omitempty"`
-	Meta          map[string]string      `protobuf:"bytes,6,rep,name=meta,proto3" json:"meta,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	JobId            string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	JobName          string                 `protobuf:"bytes,2,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty"`
+	JobType          string                 `protobuf:"bytes,3,opt,name=job_type,json=jobType,proto3" json:"job_type,omitempty"`                            // Job type: "service", "batch", etc.
+	SelectedClusters []string               `protobuf:"bytes,4,rep,name=selected_clusters,json=selectedClusters,proto3" json:"selected_clusters,omitempty"` // Clusters where this job can run (empty = any cluster)
+	Tasks            []*Task                `protobuf:"bytes,5,rep,name=tasks,proto3" json:"tasks,omitempty"`
+	JobMetadata      map[string]string      `protobuf:"bytes,6,rep,name=job_metadata,json=jobMetadata,proto3" json:"job_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Job-level metadata
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Job) Reset() {
@@ -253,25 +261,25 @@ func (x *Job) GetJobId() string {
 	return ""
 }
 
-func (x *Job) GetName() string {
+func (x *Job) GetJobName() string {
 	if x != nil {
-		return x.Name
+		return x.JobName
 	}
 	return ""
 }
 
-func (x *Job) GetType() string {
+func (x *Job) GetJobType() string {
 	if x != nil {
-		return x.Type
+		return x.JobType
 	}
 	return ""
 }
 
-func (x *Job) GetDatacenters() string {
+func (x *Job) GetSelectedClusters() []string {
 	if x != nil {
-		return x.Datacenters
+		return x.SelectedClusters
 	}
-	return ""
+	return nil
 }
 
 func (x *Job) GetTasks() []*Task {
@@ -281,25 +289,25 @@ func (x *Job) GetTasks() []*Task {
 	return nil
 }
 
-func (x *Job) GetMeta() map[string]string {
+func (x *Job) GetJobMetadata() map[string]string {
 	if x != nil {
-		return x.Meta
+		return x.JobMetadata
 	}
 	return nil
 }
 
 type Task struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Driver        string                 `protobuf:"bytes,2,opt,name=driver,proto3" json:"driver,omitempty"`
-	Exec          string                 `protobuf:"bytes,3,opt,name=exec,proto3" json:"exec,omitempty"`
-	Config        *ContainerSpec         `protobuf:"bytes,4,opt,name=config,proto3" json:"config,omitempty"`
-	Env           map[string]string      `protobuf:"bytes,5,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Resources     *Resources             `protobuf:"bytes,6,opt,name=resources,proto3" json:"resources,omitempty"`
-	Volumes       []*Volume              `protobuf:"bytes,7,rep,name=volumes,proto3" json:"volumes,omitempty"`
-	Kind          string                 `protobuf:"bytes,8,opt,name=kind,proto3" json:"kind,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	TaskName             string                 `protobuf:"bytes,1,opt,name=task_name,json=taskName,proto3" json:"task_name,omitempty"`
+	DriverType           string                 `protobuf:"bytes,2,opt,name=driver_type,json=driverType,proto3" json:"driver_type,omitempty"` // Driver type: "podman", "incus", "exec"
+	Command              string                 `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`                         // Command or script to execute
+	ContainerConfig      *ContainerSpec         `protobuf:"bytes,4,opt,name=container_config,json=containerConfig,proto3" json:"container_config,omitempty"`
+	EnvironmentVariables map[string]string      `protobuf:"bytes,5,rep,name=environment_variables,json=environmentVariables,proto3" json:"environment_variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ResourceRequirements *Resources             `protobuf:"bytes,6,opt,name=resource_requirements,json=resourceRequirements,proto3" json:"resource_requirements,omitempty"`
+	VolumeMounts         []*Volume              `protobuf:"bytes,7,rep,name=volume_mounts,json=volumeMounts,proto3" json:"volume_mounts,omitempty"`
+	WorkloadType         string                 `protobuf:"bytes,8,opt,name=workload_type,json=workloadType,proto3" json:"workload_type,omitempty"` // Workload type: "container", "vm", "process"
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Task) Reset() {
@@ -332,71 +340,71 @@ func (*Task) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *Task) GetName() string {
+func (x *Task) GetTaskName() string {
 	if x != nil {
-		return x.Name
+		return x.TaskName
 	}
 	return ""
 }
 
-func (x *Task) GetDriver() string {
+func (x *Task) GetDriverType() string {
 	if x != nil {
-		return x.Driver
+		return x.DriverType
 	}
 	return ""
 }
 
-func (x *Task) GetExec() string {
+func (x *Task) GetCommand() string {
 	if x != nil {
-		return x.Exec
+		return x.Command
 	}
 	return ""
 }
 
-func (x *Task) GetConfig() *ContainerSpec {
+func (x *Task) GetContainerConfig() *ContainerSpec {
 	if x != nil {
-		return x.Config
+		return x.ContainerConfig
 	}
 	return nil
 }
 
-func (x *Task) GetEnv() map[string]string {
+func (x *Task) GetEnvironmentVariables() map[string]string {
 	if x != nil {
-		return x.Env
+		return x.EnvironmentVariables
 	}
 	return nil
 }
 
-func (x *Task) GetResources() *Resources {
+func (x *Task) GetResourceRequirements() *Resources {
 	if x != nil {
-		return x.Resources
+		return x.ResourceRequirements
 	}
 	return nil
 }
 
-func (x *Task) GetVolumes() []*Volume {
+func (x *Task) GetVolumeMounts() []*Volume {
 	if x != nil {
-		return x.Volumes
+		return x.VolumeMounts
 	}
 	return nil
 }
 
-func (x *Task) GetKind() string {
+func (x *Task) GetWorkloadType() string {
 	if x != nil {
-		return x.Kind
+		return x.WorkloadType
 	}
 	return ""
 }
 
-// Container resource specifications
+// Resource requirements and limits for task execution
 type Resources struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	MemoryMb        int64                  `protobuf:"varint,1,opt,name=memory_mb,json=memoryMb,proto3" json:"memory_mb,omitempty"`                        // Memory limit in MB
-	MemoryReserveMb int64                  `protobuf:"varint,2,opt,name=memory_reserve_mb,json=memoryReserveMb,proto3" json:"memory_reserve_mb,omitempty"` // Reserved memory in MB
-	Cpu             float32                `protobuf:"fixed32,3,opt,name=cpu,proto3" json:"cpu,omitempty"`                                                 // CPU limit (e.g., 1.0 = 1 core, 0.5 = half core)
-	CpuReserve      float32                `protobuf:"fixed32,4,opt,name=cpu_reserve,json=cpuReserve,proto3" json:"cpu_reserve,omitempty"`                 // Reserved CPU
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	MemoryLimitMb    int64                  `protobuf:"varint,1,opt,name=memory_limit_mb,json=memoryLimitMb,proto3" json:"memory_limit_mb,omitempty"`           // Maximum memory in MB
+	MemoryReservedMb int64                  `protobuf:"varint,2,opt,name=memory_reserved_mb,json=memoryReservedMb,proto3" json:"memory_reserved_mb,omitempty"`  // Reserved/guaranteed memory in MB
+	CpuLimitCores    float32                `protobuf:"fixed32,3,opt,name=cpu_limit_cores,json=cpuLimitCores,proto3" json:"cpu_limit_cores,omitempty"`          // CPU limit in cores (e.g., 1.0 = 1 core, 0.5 = half core)
+	CpuReservedCores float32                `protobuf:"fixed32,4,opt,name=cpu_reserved_cores,json=cpuReservedCores,proto3" json:"cpu_reserved_cores,omitempty"` // Reserved/guaranteed CPU in cores
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Resources) Reset() {
@@ -429,40 +437,40 @@ func (*Resources) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *Resources) GetMemoryMb() int64 {
+func (x *Resources) GetMemoryLimitMb() int64 {
 	if x != nil {
-		return x.MemoryMb
+		return x.MemoryLimitMb
 	}
 	return 0
 }
 
-func (x *Resources) GetMemoryReserveMb() int64 {
+func (x *Resources) GetMemoryReservedMb() int64 {
 	if x != nil {
-		return x.MemoryReserveMb
+		return x.MemoryReservedMb
 	}
 	return 0
 }
 
-func (x *Resources) GetCpu() float32 {
+func (x *Resources) GetCpuLimitCores() float32 {
 	if x != nil {
-		return x.Cpu
+		return x.CpuLimitCores
 	}
 	return 0
 }
 
-func (x *Resources) GetCpuReserve() float32 {
+func (x *Resources) GetCpuReservedCores() float32 {
 	if x != nil {
-		return x.CpuReserve
+		return x.CpuReservedCores
 	}
 	return 0
 }
 
-// Volume mount specification
+// Volume mount specification for binding host paths to container/VM paths
 type Volume struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	HostPath      string                 `protobuf:"bytes,1,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`                // Path on the host
-	ContainerPath string                 `protobuf:"bytes,2,opt,name=container_path,json=containerPath,proto3" json:"container_path,omitempty"` // Path inside the container
-	ReadOnly      bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`               // Whether the volume is read-only
+	SourcePath    string                 `protobuf:"bytes,1,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"` // Path on the host system
+	TargetPath    string                 `protobuf:"bytes,2,opt,name=target_path,json=targetPath,proto3" json:"target_path,omitempty"` // Path inside the container/VM
+	ReadOnly      bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`      // Whether the mount is read-only
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -497,16 +505,16 @@ func (*Volume) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *Volume) GetHostPath() string {
+func (x *Volume) GetSourcePath() string {
 	if x != nil {
-		return x.HostPath
+		return x.SourcePath
 	}
 	return ""
 }
 
-func (x *Volume) GetContainerPath() string {
+func (x *Volume) GetTargetPath() string {
 	if x != nil {
-		return x.ContainerPath
+		return x.TargetPath
 	}
 	return ""
 }
@@ -518,13 +526,13 @@ func (x *Volume) GetReadOnly() bool {
 	return false
 }
 
-// Container specification
+// Container/image specification for containerized workloads
 type ContainerSpec struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Image         string                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
-	Command       []string               `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"` // Command to run in the container
-	Args          []string               `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`       // Arguments for the command
-	Options       map[string]string      `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ImageName     string                 `protobuf:"bytes,1,opt,name=image_name,json=imageName,proto3" json:"image_name,omitempty"`                                                                                       // Container image (e.g., "nginx:latest")
+	Entrypoint    []string               `protobuf:"bytes,2,rep,name=entrypoint,proto3" json:"entrypoint,omitempty"`                                                                                                      // Entrypoint command to run in the container
+	Arguments     []string               `protobuf:"bytes,3,rep,name=arguments,proto3" json:"arguments,omitempty"`                                                                                                        // Arguments for the entrypoint command
+	DriverOptions map[string]string      `protobuf:"bytes,4,rep,name=driver_options,json=driverOptions,proto3" json:"driver_options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Driver-specific configuration options
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -559,41 +567,41 @@ func (*ContainerSpec) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *ContainerSpec) GetImage() string {
+func (x *ContainerSpec) GetImageName() string {
 	if x != nil {
-		return x.Image
+		return x.ImageName
 	}
 	return ""
 }
 
-func (x *ContainerSpec) GetCommand() []string {
+func (x *ContainerSpec) GetEntrypoint() []string {
 	if x != nil {
-		return x.Command
+		return x.Entrypoint
 	}
 	return nil
 }
 
-func (x *ContainerSpec) GetArgs() []string {
+func (x *ContainerSpec) GetArguments() []string {
 	if x != nil {
-		return x.Args
+		return x.Arguments
 	}
 	return nil
 }
 
-func (x *ContainerSpec) GetOptions() map[string]string {
+func (x *ContainerSpec) GetDriverOptions() map[string]string {
 	if x != nil {
-		return x.Options
+		return x.DriverOptions
 	}
 	return nil
 }
 
 type GetJobResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	HasJob        bool                   `protobuf:"varint,1,opt,name=has_job,json=hasJob,proto3" json:"has_job,omitempty"`
-	Job           *Job                   `protobuf:"bytes,2,opt,name=job,proto3" json:"job,omitempty"`
-	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	JobAvailable    bool                   `protobuf:"varint,1,opt,name=job_available,json=jobAvailable,proto3" json:"job_available,omitempty"` // Whether a job is available for execution
+	Job             *Job                   `protobuf:"bytes,2,opt,name=job,proto3" json:"job,omitempty"`
+	ResponseMessage string                 `protobuf:"bytes,3,opt,name=response_message,json=responseMessage,proto3" json:"response_message,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetJobResponse) Reset() {
@@ -626,9 +634,9 @@ func (*GetJobResponse) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *GetJobResponse) GetHasJob() bool {
+func (x *GetJobResponse) GetJobAvailable() bool {
 	if x != nil {
-		return x.HasJob
+		return x.JobAvailable
 	}
 	return false
 }
@@ -640,20 +648,20 @@ func (x *GetJobResponse) GetJob() *Job {
 	return nil
 }
 
-func (x *GetJobResponse) GetMessage() string {
+func (x *GetJobResponse) GetResponseMessage() string {
 	if x != nil {
-		return x.Message
+		return x.ResponseMessage
 	}
 	return ""
 }
 
-// Update status of a job from NodeAgent to ControlPlane
+// Status update from Agent to Centro about job execution
 type UpdateStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // e.g., "running", "completed", "failed"
-	Detail        string                 `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`
+	JobStatus     string                 `protobuf:"bytes,3,opt,name=job_status,json=jobStatus,proto3" json:"job_status,omitempty"`             // Job status: "pending", "running", "completed", "failed"
+	StatusMessage string                 `protobuf:"bytes,4,opt,name=status_message,json=statusMessage,proto3" json:"status_message,omitempty"` // Detailed status message or error description
 	Timestamp     int64                  `protobuf:"varint,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -703,16 +711,16 @@ func (x *UpdateStatusRequest) GetJobId() string {
 	return ""
 }
 
-func (x *UpdateStatusRequest) GetStatus() string {
+func (x *UpdateStatusRequest) GetJobStatus() string {
 	if x != nil {
-		return x.Status
+		return x.JobStatus
 	}
 	return ""
 }
 
-func (x *UpdateStatusRequest) GetDetail() string {
+func (x *UpdateStatusRequest) GetStatusMessage() string {
 	if x != nil {
-		return x.Detail
+		return x.StatusMessage
 	}
 	return ""
 }
@@ -725,11 +733,11 @@ func (x *UpdateStatusRequest) GetTimestamp() int64 {
 }
 
 type UpdateStatusResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Acknowledged    bool                   `protobuf:"varint,1,opt,name=acknowledged,proto3" json:"acknowledged,omitempty"`
+	ResponseMessage string                 `protobuf:"bytes,2,opt,name=response_message,json=responseMessage,proto3" json:"response_message,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpdateStatusResponse) Reset() {
@@ -762,121 +770,16 @@ func (*UpdateStatusResponse) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *UpdateStatusResponse) GetOk() bool {
+func (x *UpdateStatusResponse) GetAcknowledged() bool {
 	if x != nil {
-		return x.Ok
+		return x.Acknowledged
 	}
 	return false
 }
 
-func (x *UpdateStatusResponse) GetMessage() string {
+func (x *UpdateStatusResponse) GetResponseMessage() string {
 	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-// Request to claim a job from the ControlPlane
-type ClaimJobRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClaimJobRequest) Reset() {
-	*x = ClaimJobRequest{}
-	mi := &file_proto_agent_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClaimJobRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClaimJobRequest) ProtoMessage() {}
-
-func (x *ClaimJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClaimJobRequest.ProtoReflect.Descriptor instead.
-func (*ClaimJobRequest) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *ClaimJobRequest) GetNodeId() string {
-	if x != nil {
-		return x.NodeId
-	}
-	return ""
-}
-
-func (x *ClaimJobRequest) GetJobId() string {
-	if x != nil {
-		return x.JobId
-	}
-	return ""
-}
-
-type ClaimJobResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClaimJobResponse) Reset() {
-	*x = ClaimJobResponse{}
-	mi := &file_proto_agent_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClaimJobResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClaimJobResponse) ProtoMessage() {}
-
-func (x *ClaimJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClaimJobResponse.ProtoReflect.Descriptor instead.
-func (*ClaimJobResponse) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *ClaimJobResponse) GetOk() bool {
-	if x != nil {
-		return x.Ok
-	}
-	return false
-}
-
-func (x *ClaimJobResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
+		return x.ResponseMessage
 	}
 	return ""
 }
@@ -885,88 +788,86 @@ var File_proto_agent_proto protoreflect.FileDescriptor
 
 const file_proto_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x11proto/agent.proto\x12\x04talk\"\x99\x02\n" +
+	"\x11proto/agent.proto\x12\tscheduler\"\x8d\x03\n" +
 	"\x10HeartbeatRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1c\n" +
-	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\x12\x15\n" +
-	"\x06ram_mb\x18\x03 \x01(\x02R\x05ramMb\x12\x1f\n" +
-	"\vcpu_percent\x18\x04 \x01(\x02R\n" +
-	"cpuPercent\x12\x17\n" +
-	"\adisk_mb\x18\x05 \x01(\x02R\x06diskMb\x12@\n" +
-	"\bmetadata\x18\x06 \x03(\v2$.talk.HeartbeatRequest.MetadataEntryR\bmetadata\x1a;\n" +
-	"\rMetadataEntry\x12\x10\n" +
+	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\x12.\n" +
+	"\x13available_memory_mb\x18\x03 \x01(\x02R\x11availableMemoryMb\x12.\n" +
+	"\x13available_cpu_cores\x18\x04 \x01(\x02R\x11availableCpuCores\x12*\n" +
+	"\x11available_disk_mb\x18\x05 \x01(\x02R\x0favailableDiskMb\x12R\n" +
+	"\rnode_metadata\x18\x06 \x03(\v2-.scheduler.HeartbeatRequest.NodeMetadataEntryR\fnodeMetadata\x12!\n" +
+	"\fcluster_name\x18\a \x01(\tR\vclusterName\x1a?\n" +
+	"\x11NodeMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"=\n" +
-	"\x11HeartbeatResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"(\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"b\n" +
+	"\x11HeartbeatResponse\x12\"\n" +
+	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
+	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage\"(\n" +
 	"\rGetJobRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xea\x01\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xaa\x02\n" +
 	"\x03Job\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
-	"\x04type\x18\x03 \x01(\tR\x04type\x12 \n" +
-	"\vdatacenters\x18\x04 \x01(\tR\vdatacenters\x12 \n" +
-	"\x05tasks\x18\x05 \x03(\v2\n" +
-	".talk.TaskR\x05tasks\x12'\n" +
-	"\x04meta\x18\x06 \x03(\v2\x13.talk.Job.MetaEntryR\x04meta\x1a7\n" +
-	"\tMetaEntry\x12\x10\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x19\n" +
+	"\bjob_name\x18\x02 \x01(\tR\ajobName\x12\x19\n" +
+	"\bjob_type\x18\x03 \x01(\tR\ajobType\x12+\n" +
+	"\x11selected_clusters\x18\x04 \x03(\tR\x10selectedClusters\x12%\n" +
+	"\x05tasks\x18\x05 \x03(\v2\x0f.scheduler.TaskR\x05tasks\x12B\n" +
+	"\fjob_metadata\x18\x06 \x03(\v2\x1f.scheduler.Job.JobMetadataEntryR\vjobMetadata\x1a>\n" +
+	"\x10JobMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbd\x02\n" +
-	"\x04Task\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
-	"\x06driver\x18\x02 \x01(\tR\x06driver\x12\x12\n" +
-	"\x04exec\x18\x03 \x01(\tR\x04exec\x12+\n" +
-	"\x06config\x18\x04 \x01(\v2\x13.talk.ContainerSpecR\x06config\x12%\n" +
-	"\x03env\x18\x05 \x03(\v2\x13.talk.Task.EnvEntryR\x03env\x12-\n" +
-	"\tresources\x18\x06 \x01(\v2\x0f.talk.ResourcesR\tresources\x12&\n" +
-	"\avolumes\x18\a \x03(\v2\f.talk.VolumeR\avolumes\x12\x12\n" +
-	"\x04kind\x18\b \x01(\tR\x04kind\x1a6\n" +
-	"\bEnvEntry\x12\x10\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf4\x03\n" +
+	"\x04Task\x12\x1b\n" +
+	"\ttask_name\x18\x01 \x01(\tR\btaskName\x12\x1f\n" +
+	"\vdriver_type\x18\x02 \x01(\tR\n" +
+	"driverType\x12\x18\n" +
+	"\acommand\x18\x03 \x01(\tR\acommand\x12C\n" +
+	"\x10container_config\x18\x04 \x01(\v2\x18.scheduler.ContainerSpecR\x0fcontainerConfig\x12^\n" +
+	"\x15environment_variables\x18\x05 \x03(\v2).scheduler.Task.EnvironmentVariablesEntryR\x14environmentVariables\x12I\n" +
+	"\x15resource_requirements\x18\x06 \x01(\v2\x14.scheduler.ResourcesR\x14resourceRequirements\x126\n" +
+	"\rvolume_mounts\x18\a \x03(\v2\x11.scheduler.VolumeR\fvolumeMounts\x12#\n" +
+	"\rworkload_type\x18\b \x01(\tR\fworkloadType\x1aG\n" +
+	"\x19EnvironmentVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x87\x01\n" +
-	"\tResources\x12\x1b\n" +
-	"\tmemory_mb\x18\x01 \x01(\x03R\bmemoryMb\x12*\n" +
-	"\x11memory_reserve_mb\x18\x02 \x01(\x03R\x0fmemoryReserveMb\x12\x10\n" +
-	"\x03cpu\x18\x03 \x01(\x02R\x03cpu\x12\x1f\n" +
-	"\vcpu_reserve\x18\x04 \x01(\x02R\n" +
-	"cpuReserve\"i\n" +
-	"\x06Volume\x12\x1b\n" +
-	"\thost_path\x18\x01 \x01(\tR\bhostPath\x12%\n" +
-	"\x0econtainer_path\x18\x02 \x01(\tR\rcontainerPath\x12\x1b\n" +
-	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\xcb\x01\n" +
-	"\rContainerSpec\x12\x14\n" +
-	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
-	"\acommand\x18\x02 \x03(\tR\acommand\x12\x12\n" +
-	"\x04args\x18\x03 \x03(\tR\x04args\x12:\n" +
-	"\aoptions\x18\x04 \x03(\v2 .talk.ContainerSpec.OptionsEntryR\aoptions\x1a:\n" +
-	"\fOptionsEntry\x12\x10\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb7\x01\n" +
+	"\tResources\x12&\n" +
+	"\x0fmemory_limit_mb\x18\x01 \x01(\x03R\rmemoryLimitMb\x12,\n" +
+	"\x12memory_reserved_mb\x18\x02 \x01(\x03R\x10memoryReservedMb\x12&\n" +
+	"\x0fcpu_limit_cores\x18\x03 \x01(\x02R\rcpuLimitCores\x12,\n" +
+	"\x12cpu_reserved_cores\x18\x04 \x01(\x02R\x10cpuReservedCores\"g\n" +
+	"\x06Volume\x12\x1f\n" +
+	"\vsource_path\x18\x01 \x01(\tR\n" +
+	"sourcePath\x12\x1f\n" +
+	"\vtarget_path\x18\x02 \x01(\tR\n" +
+	"targetPath\x12\x1b\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\x82\x02\n" +
+	"\rContainerSpec\x12\x1d\n" +
+	"\n" +
+	"image_name\x18\x01 \x01(\tR\timageName\x12\x1e\n" +
+	"\n" +
+	"entrypoint\x18\x02 \x03(\tR\n" +
+	"entrypoint\x12\x1c\n" +
+	"\targuments\x18\x03 \x03(\tR\targuments\x12R\n" +
+	"\x0edriver_options\x18\x04 \x03(\v2+.scheduler.ContainerSpec.DriverOptionsEntryR\rdriverOptions\x1a@\n" +
+	"\x12DriverOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"`\n" +
-	"\x0eGetJobResponse\x12\x17\n" +
-	"\ahas_job\x18\x01 \x01(\bR\x06hasJob\x12\x1b\n" +
-	"\x03job\x18\x02 \x01(\v2\t.talk.JobR\x03job\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\x93\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x82\x01\n" +
+	"\x0eGetJobResponse\x12#\n" +
+	"\rjob_available\x18\x01 \x01(\bR\fjobAvailable\x12 \n" +
+	"\x03job\x18\x02 \x01(\v2\x0e.scheduler.JobR\x03job\x12)\n" +
+	"\x10response_message\x18\x03 \x01(\tR\x0fresponseMessage\"\xa9\x01\n" +
 	"\x13UpdateStatusRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x15\n" +
-	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12\x16\n" +
-	"\x06status\x18\x03 \x01(\tR\x06status\x12\x16\n" +
-	"\x06detail\x18\x04 \x01(\tR\x06detail\x12\x1c\n" +
-	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\"@\n" +
-	"\x14UpdateStatusResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"A\n" +
-	"\x0fClaimJobRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x15\n" +
-	"\x06job_id\x18\x02 \x01(\tR\x05jobId\"<\n" +
-	"\x10ClaimJobResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\x87\x02\n" +
-	"\x10NodeAgentService\x12<\n" +
-	"\tHeartbeat\x12\x16.talk.HeartbeatRequest\x1a\x17.talk.HeartbeatResponse\x123\n" +
-	"\x06GetJob\x12\x13.talk.GetJobRequest\x1a\x14.talk.GetJobResponse\x129\n" +
-	"\bClaimJob\x12\x15.talk.ClaimJobRequest\x1a\x16.talk.ClaimJobResponse\x12E\n" +
-	"\fUpdateStatus\x12\x19.talk.UpdateStatusRequest\x1a\x1a.talk.UpdateStatusResponseB!Z\x1fgithub.com/open-scheduler/protob\x06proto3"
+	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12\x1d\n" +
+	"\n" +
+	"job_status\x18\x03 \x01(\tR\tjobStatus\x12%\n" +
+	"\x0estatus_message\x18\x04 \x01(\tR\rstatusMessage\x12\x1c\n" +
+	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\"e\n" +
+	"\x14UpdateStatusResponse\x12\"\n" +
+	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
+	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage2\xf0\x01\n" +
+	"\x16CentroSchedulerService\x12F\n" +
+	"\tHeartbeat\x12\x1b.scheduler.HeartbeatRequest\x1a\x1c.scheduler.HeartbeatResponse\x12=\n" +
+	"\x06GetJob\x12\x18.scheduler.GetJobRequest\x1a\x19.scheduler.GetJobResponse\x12O\n" +
+	"\fUpdateStatus\x12\x1e.scheduler.UpdateStatusRequest\x1a\x1f.scheduler.UpdateStatusResponseB!Z\x1fgithub.com/open-scheduler/protob\x06proto3"
 
 var (
 	file_proto_agent_proto_rawDescOnce sync.Once
@@ -980,46 +881,42 @@ func file_proto_agent_proto_rawDescGZIP() []byte {
 	return file_proto_agent_proto_rawDescData
 }
 
-var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_proto_agent_proto_goTypes = []any{
-	(*HeartbeatRequest)(nil),     // 0: talk.HeartbeatRequest
-	(*HeartbeatResponse)(nil),    // 1: talk.HeartbeatResponse
-	(*GetJobRequest)(nil),        // 2: talk.GetJobRequest
-	(*Job)(nil),                  // 3: talk.Job
-	(*Task)(nil),                 // 4: talk.Task
-	(*Resources)(nil),            // 5: talk.Resources
-	(*Volume)(nil),               // 6: talk.Volume
-	(*ContainerSpec)(nil),        // 7: talk.ContainerSpec
-	(*GetJobResponse)(nil),       // 8: talk.GetJobResponse
-	(*UpdateStatusRequest)(nil),  // 9: talk.UpdateStatusRequest
-	(*UpdateStatusResponse)(nil), // 10: talk.UpdateStatusResponse
-	(*ClaimJobRequest)(nil),      // 11: talk.ClaimJobRequest
-	(*ClaimJobResponse)(nil),     // 12: talk.ClaimJobResponse
-	nil,                          // 13: talk.HeartbeatRequest.MetadataEntry
-	nil,                          // 14: talk.Job.MetaEntry
-	nil,                          // 15: talk.Task.EnvEntry
-	nil,                          // 16: talk.ContainerSpec.OptionsEntry
+	(*HeartbeatRequest)(nil),     // 0: scheduler.HeartbeatRequest
+	(*HeartbeatResponse)(nil),    // 1: scheduler.HeartbeatResponse
+	(*GetJobRequest)(nil),        // 2: scheduler.GetJobRequest
+	(*Job)(nil),                  // 3: scheduler.Job
+	(*Task)(nil),                 // 4: scheduler.Task
+	(*Resources)(nil),            // 5: scheduler.Resources
+	(*Volume)(nil),               // 6: scheduler.Volume
+	(*ContainerSpec)(nil),        // 7: scheduler.ContainerSpec
+	(*GetJobResponse)(nil),       // 8: scheduler.GetJobResponse
+	(*UpdateStatusRequest)(nil),  // 9: scheduler.UpdateStatusRequest
+	(*UpdateStatusResponse)(nil), // 10: scheduler.UpdateStatusResponse
+	nil,                          // 11: scheduler.HeartbeatRequest.NodeMetadataEntry
+	nil,                          // 12: scheduler.Job.JobMetadataEntry
+	nil,                          // 13: scheduler.Task.EnvironmentVariablesEntry
+	nil,                          // 14: scheduler.ContainerSpec.DriverOptionsEntry
 }
 var file_proto_agent_proto_depIdxs = []int32{
-	13, // 0: talk.HeartbeatRequest.metadata:type_name -> talk.HeartbeatRequest.MetadataEntry
-	4,  // 1: talk.Job.tasks:type_name -> talk.Task
-	14, // 2: talk.Job.meta:type_name -> talk.Job.MetaEntry
-	7,  // 3: talk.Task.config:type_name -> talk.ContainerSpec
-	15, // 4: talk.Task.env:type_name -> talk.Task.EnvEntry
-	5,  // 5: talk.Task.resources:type_name -> talk.Resources
-	6,  // 6: talk.Task.volumes:type_name -> talk.Volume
-	16, // 7: talk.ContainerSpec.options:type_name -> talk.ContainerSpec.OptionsEntry
-	3,  // 8: talk.GetJobResponse.job:type_name -> talk.Job
-	0,  // 9: talk.NodeAgentService.Heartbeat:input_type -> talk.HeartbeatRequest
-	2,  // 10: talk.NodeAgentService.GetJob:input_type -> talk.GetJobRequest
-	11, // 11: talk.NodeAgentService.ClaimJob:input_type -> talk.ClaimJobRequest
-	9,  // 12: talk.NodeAgentService.UpdateStatus:input_type -> talk.UpdateStatusRequest
-	1,  // 13: talk.NodeAgentService.Heartbeat:output_type -> talk.HeartbeatResponse
-	8,  // 14: talk.NodeAgentService.GetJob:output_type -> talk.GetJobResponse
-	12, // 15: talk.NodeAgentService.ClaimJob:output_type -> talk.ClaimJobResponse
-	10, // 16: talk.NodeAgentService.UpdateStatus:output_type -> talk.UpdateStatusResponse
-	13, // [13:17] is the sub-list for method output_type
-	9,  // [9:13] is the sub-list for method input_type
+	11, // 0: scheduler.HeartbeatRequest.node_metadata:type_name -> scheduler.HeartbeatRequest.NodeMetadataEntry
+	4,  // 1: scheduler.Job.tasks:type_name -> scheduler.Task
+	12, // 2: scheduler.Job.job_metadata:type_name -> scheduler.Job.JobMetadataEntry
+	7,  // 3: scheduler.Task.container_config:type_name -> scheduler.ContainerSpec
+	13, // 4: scheduler.Task.environment_variables:type_name -> scheduler.Task.EnvironmentVariablesEntry
+	5,  // 5: scheduler.Task.resource_requirements:type_name -> scheduler.Resources
+	6,  // 6: scheduler.Task.volume_mounts:type_name -> scheduler.Volume
+	14, // 7: scheduler.ContainerSpec.driver_options:type_name -> scheduler.ContainerSpec.DriverOptionsEntry
+	3,  // 8: scheduler.GetJobResponse.job:type_name -> scheduler.Job
+	0,  // 9: scheduler.CentroSchedulerService.Heartbeat:input_type -> scheduler.HeartbeatRequest
+	2,  // 10: scheduler.CentroSchedulerService.GetJob:input_type -> scheduler.GetJobRequest
+	9,  // 11: scheduler.CentroSchedulerService.UpdateStatus:input_type -> scheduler.UpdateStatusRequest
+	1,  // 12: scheduler.CentroSchedulerService.Heartbeat:output_type -> scheduler.HeartbeatResponse
+	8,  // 13: scheduler.CentroSchedulerService.GetJob:output_type -> scheduler.GetJobResponse
+	10, // 14: scheduler.CentroSchedulerService.UpdateStatus:output_type -> scheduler.UpdateStatusResponse
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1036,7 +933,7 @@ func file_proto_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_agent_proto_rawDesc), len(file_proto_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

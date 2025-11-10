@@ -12,7 +12,7 @@ type GetJobCommand struct {
 	service *job.GetJobService
 }
 
-func NewGetJobCommand(grpcClient *agentgrpc.SharedClient) *GetJobCommand {
+func NewGetJobCommand(grpcClient *agentgrpc.GrpcClient) *GetJobCommand {
 	service, err := job.NewGetJobService(grpcClient)
 	if err != nil {
 		log.Fatalf("[GetJobCommand] Failed to create service: %v", err)

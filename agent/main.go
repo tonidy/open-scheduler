@@ -44,7 +44,7 @@ func main() {
 		nodeID = hostname
 	}
 
-	grpcClient, err := agentgrpc.NewSharedClient(serverAddr)
+	grpcClient, err := agentgrpc.NewGrpcClient(serverAddr)
 	if err != nil {
 		log.Fatalf("Failed to create gRPC client: %v", err)
 	}

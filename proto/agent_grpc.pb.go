@@ -19,223 +19,188 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	NodeAgentService_Heartbeat_FullMethodName    = "/talk.NodeAgentService/Heartbeat"
-	NodeAgentService_GetJob_FullMethodName       = "/talk.NodeAgentService/GetJob"
-	NodeAgentService_ClaimJob_FullMethodName     = "/talk.NodeAgentService/ClaimJob"
-	NodeAgentService_UpdateStatus_FullMethodName = "/talk.NodeAgentService/UpdateStatus"
+	CentroSchedulerService_Heartbeat_FullMethodName    = "/scheduler.CentroSchedulerService/Heartbeat"
+	CentroSchedulerService_GetJob_FullMethodName       = "/scheduler.CentroSchedulerService/GetJob"
+	CentroSchedulerService_UpdateStatus_FullMethodName = "/scheduler.CentroSchedulerService/UpdateStatus"
 )
 
-// NodeAgentServiceClient is the client API for NodeAgentService service.
+// CentroSchedulerServiceClient is the client API for CentroSchedulerService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type NodeAgentServiceClient interface {
-	// NodeAgent sends a heartbeat to ControlPlane
+//
+// Service provided by Centro (Control Plane) for Agent (Data Plane) communication
+type CentroSchedulerServiceClient interface {
+	// Agent sends periodic heartbeat to report node health and available resources
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
-	// NodeAgent requests a job from ControlPlane
+	// Agent requests an available job from Centro for execution
 	GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error)
-	// NodeAgent claims a job before executing it
-	ClaimJob(ctx context.Context, in *ClaimJobRequest, opts ...grpc.CallOption) (*ClaimJobResponse, error)
-	// NodeAgent sends job status update
+	// Agent sends job execution status updates to Centro
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 }
 
-type nodeAgentServiceClient struct {
+type centroSchedulerServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewNodeAgentServiceClient(cc grpc.ClientConnInterface) NodeAgentServiceClient {
-	return &nodeAgentServiceClient{cc}
+func NewCentroSchedulerServiceClient(cc grpc.ClientConnInterface) CentroSchedulerServiceClient {
+	return &centroSchedulerServiceClient{cc}
 }
 
-func (c *nodeAgentServiceClient) Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
+func (c *centroSchedulerServiceClient) Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(HeartbeatResponse)
-	err := c.cc.Invoke(ctx, NodeAgentService_Heartbeat_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, CentroSchedulerService_Heartbeat_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeAgentServiceClient) GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error) {
+func (c *centroSchedulerServiceClient) GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetJobResponse)
-	err := c.cc.Invoke(ctx, NodeAgentService_GetJob_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, CentroSchedulerService_GetJob_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeAgentServiceClient) ClaimJob(ctx context.Context, in *ClaimJobRequest, opts ...grpc.CallOption) (*ClaimJobResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClaimJobResponse)
-	err := c.cc.Invoke(ctx, NodeAgentService_ClaimJob_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeAgentServiceClient) UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error) {
+func (c *centroSchedulerServiceClient) UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateStatusResponse)
-	err := c.cc.Invoke(ctx, NodeAgentService_UpdateStatus_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, CentroSchedulerService_UpdateStatus_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// NodeAgentServiceServer is the server API for NodeAgentService service.
-// All implementations must embed UnimplementedNodeAgentServiceServer
+// CentroSchedulerServiceServer is the server API for CentroSchedulerService service.
+// All implementations must embed UnimplementedCentroSchedulerServiceServer
 // for forward compatibility.
-type NodeAgentServiceServer interface {
-	// NodeAgent sends a heartbeat to ControlPlane
+//
+// Service provided by Centro (Control Plane) for Agent (Data Plane) communication
+type CentroSchedulerServiceServer interface {
+	// Agent sends periodic heartbeat to report node health and available resources
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
-	// NodeAgent requests a job from ControlPlane
+	// Agent requests an available job from Centro for execution
 	GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error)
-	// NodeAgent claims a job before executing it
-	ClaimJob(context.Context, *ClaimJobRequest) (*ClaimJobResponse, error)
-	// NodeAgent sends job status update
+	// Agent sends job execution status updates to Centro
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
-	mustEmbedUnimplementedNodeAgentServiceServer()
+	mustEmbedUnimplementedCentroSchedulerServiceServer()
 }
 
-// UnimplementedNodeAgentServiceServer must be embedded to have
+// UnimplementedCentroSchedulerServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedNodeAgentServiceServer struct{}
+type UnimplementedCentroSchedulerServiceServer struct{}
 
-func (UnimplementedNodeAgentServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
+func (UnimplementedCentroSchedulerServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error) {
+func (UnimplementedCentroSchedulerServiceServer) GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetJob not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) ClaimJob(context.Context, *ClaimJobRequest) (*ClaimJobResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ClaimJob not implemented")
-}
-func (UnimplementedNodeAgentServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
+func (UnimplementedCentroSchedulerServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) mustEmbedUnimplementedNodeAgentServiceServer() {}
-func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue()                          {}
+func (UnimplementedCentroSchedulerServiceServer) mustEmbedUnimplementedCentroSchedulerServiceServer() {
+}
+func (UnimplementedCentroSchedulerServiceServer) testEmbeddedByValue() {}
 
-// UnsafeNodeAgentServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to NodeAgentServiceServer will
+// UnsafeCentroSchedulerServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to CentroSchedulerServiceServer will
 // result in compilation errors.
-type UnsafeNodeAgentServiceServer interface {
-	mustEmbedUnimplementedNodeAgentServiceServer()
+type UnsafeCentroSchedulerServiceServer interface {
+	mustEmbedUnimplementedCentroSchedulerServiceServer()
 }
 
-func RegisterNodeAgentServiceServer(s grpc.ServiceRegistrar, srv NodeAgentServiceServer) {
-	// If the following call pancis, it indicates UnimplementedNodeAgentServiceServer was
+func RegisterCentroSchedulerServiceServer(s grpc.ServiceRegistrar, srv CentroSchedulerServiceServer) {
+	// If the following call pancis, it indicates UnimplementedCentroSchedulerServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&NodeAgentService_ServiceDesc, srv)
+	s.RegisterService(&CentroSchedulerService_ServiceDesc, srv)
 }
 
-func _NodeAgentService_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _CentroSchedulerService_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HeartbeatRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeAgentServiceServer).Heartbeat(ctx, in)
+		return srv.(CentroSchedulerServiceServer).Heartbeat(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeAgentService_Heartbeat_FullMethodName,
+		FullMethod: CentroSchedulerService_Heartbeat_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAgentServiceServer).Heartbeat(ctx, req.(*HeartbeatRequest))
+		return srv.(CentroSchedulerServiceServer).Heartbeat(ctx, req.(*HeartbeatRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeAgentService_GetJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _CentroSchedulerService_GetJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetJobRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeAgentServiceServer).GetJob(ctx, in)
+		return srv.(CentroSchedulerServiceServer).GetJob(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeAgentService_GetJob_FullMethodName,
+		FullMethod: CentroSchedulerService_GetJob_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAgentServiceServer).GetJob(ctx, req.(*GetJobRequest))
+		return srv.(CentroSchedulerServiceServer).GetJob(ctx, req.(*GetJobRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeAgentService_ClaimJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClaimJobRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeAgentServiceServer).ClaimJob(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeAgentService_ClaimJob_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAgentServiceServer).ClaimJob(ctx, req.(*ClaimJobRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeAgentService_UpdateStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _CentroSchedulerService_UpdateStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateStatusRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeAgentServiceServer).UpdateStatus(ctx, in)
+		return srv.(CentroSchedulerServiceServer).UpdateStatus(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeAgentService_UpdateStatus_FullMethodName,
+		FullMethod: CentroSchedulerService_UpdateStatus_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAgentServiceServer).UpdateStatus(ctx, req.(*UpdateStatusRequest))
+		return srv.(CentroSchedulerServiceServer).UpdateStatus(ctx, req.(*UpdateStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
+// CentroSchedulerService_ServiceDesc is the grpc.ServiceDesc for CentroSchedulerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "talk.NodeAgentService",
-	HandlerType: (*NodeAgentServiceServer)(nil),
+var CentroSchedulerService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "scheduler.CentroSchedulerService",
+	HandlerType: (*CentroSchedulerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Heartbeat",
-			Handler:    _NodeAgentService_Heartbeat_Handler,
+			Handler:    _CentroSchedulerService_Heartbeat_Handler,
 		},
 		{
 			MethodName: "GetJob",
-			Handler:    _NodeAgentService_GetJob_Handler,
-		},
-		{
-			MethodName: "ClaimJob",
-			Handler:    _NodeAgentService_ClaimJob_Handler,
+			Handler:    _CentroSchedulerService_GetJob_Handler,
 		},
 		{
 			MethodName: "UpdateStatus",
-			Handler:    _NodeAgentService_UpdateStatus_Handler,
+			Handler:    _CentroSchedulerService_UpdateStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
