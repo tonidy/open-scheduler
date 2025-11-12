@@ -28,18 +28,18 @@ func (d *ExecDriver) Run(ctx context.Context, job *pb.Job) error {
 
 	// Build command
 	var cmd *exec.Cmd
-	if len(job.ContainerConfig.Entrypoint) == 0 {
+	if len(job.InstanceConfig.Entrypoint) == 0 {
 		return fmt.Errorf("no command specified for job %s", job.JobName)
 	}
 
 	// Create command with args
-	if len(job.ContainerConfig.Arguments) > 0 {
-		cmdArgs := append(job.ContainerConfig.Entrypoint[1:], job.ContainerConfig.Arguments...)
-		cmd = exec.CommandContext(ctx, job.ContainerConfig.Entrypoint[0], cmdArgs...)
-	} else if len(job.ContainerConfig.Entrypoint) > 1 {
-		cmd = exec.CommandContext(ctx, job.ContainerConfig.Entrypoint[0], job.ContainerConfig.Entrypoint[1:]...)
+	if len(job.InstanceConfig.Arguments) > 0 {
+		cmdArgs := append(job.InstanceConfig.Entrypoint[1:], job.InstanceConfig.Arguments...)
+		cmd = exec.CommandContext(ctx, job.InstanceConfig.Entrypoint[0], cmdArgs...)
+	} else if len(job.InstanceConfig.Entrypoint) > 1 {
+		cmd = exec.CommandContext(ctx, job.InstanceConfig.Entrypoint[0], job.InstanceConfig.Entrypoint[1:]...)
 	} else {
-		cmd = exec.CommandContext(ctx, job.ContainerConfig.Entrypoint[0])
+		cmd = exec.CommandContext(ctx, job.InstanceConfig.Entrypoint[0])
 	}
 
 	// Set environment variables
@@ -57,7 +57,7 @@ func (d *ExecDriver) Run(ctx context.Context, job *pb.Job) error {
 	cmd.Stdin = os.Stdin
 
 	// Start the command
-	log.Printf("[ExecDriver] Starting command: %v", job.ContainerConfig.Entrypoint)
+	log.Printf("[ExecDriver] Starting command: %v", job.InstanceConfig.Entrypoint)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start command: %w", err)
 	}
@@ -86,30 +86,30 @@ func (d *ExecDriver) Run(ctx context.Context, job *pb.Job) error {
 	return nil
 }
 
-// StopContainer is a mock implementation for the Driver interface
-func (d *ExecDriver) StopContainer(ctx context.Context, containerID string) error {
-	log.Printf("[ExecDriver] StopContainer called for: %s (not implemented)", containerID)
+// StopInstance is a mock implementation for the Driver interface
+func (d *ExecDriver) StopInstance(ctx context.Context, instanceID string) error {
+	log.Printf("[ExecDriver] StopInstance called for: %s (not implemented)", instanceID)
 	return nil
 }
 
-// RestartContainer is a mock implementation for the Driver interface
-func (d *ExecDriver) RestartContainer(ctx context.Context, containerID string) error {
-	log.Printf("[ExecDriver] RestartContainer called for: %s (not implemented)", containerID)
+// RestartInstance is a mock implementation for the Driver interface
+func (d *ExecDriver) RestartInstance(ctx context.Context, instanceID string) error {
+	log.Printf("[ExecDriver] RestartInstance called for: %s (not implemented)", instanceID)
 	return nil
 }
 
-// GetContainerStatus is a mock implementation for the Driver interface
-func (d *ExecDriver) GetContainerStatus(ctx context.Context, containerID string) (string, error) {
-	log.Printf("[ExecDriver] GetContainerStatus called for: %s (not implemented)", containerID)
+// GetInstanceStatus is a mock implementation for the Driver interface
+func (d *ExecDriver) GetInstanceStatus(ctx context.Context, instanceID string) (string, error) {
+	log.Printf("[ExecDriver] GetInstanceStatus called for: %s (not implemented)", instanceID)
 	return "unknown", nil
 }
 
-func (d *ExecDriver) InspectContainer(ctx context.Context, containerID string) (*pb.ContainerData, error) {
-	log.Printf("[ExecDriver] InspectContainer called for: %s (not implemented)", containerID)
-	return nil, fmt.Errorf("InspectContainer not implemented for exec driver")
+func (d *ExecDriver) InspectInstance(ctx context.Context, instanceID string) (*pb.InstanceData, error) {
+	log.Printf("[ExecDriver] InspectInstance called for: %s (not implemented)", instanceID)
+	return nil, fmt.Errorf("InspectInstance not implemented for exec driver")
 }
 
-func (d *ExecDriver) ListContainers(ctx context.Context) ([]*pb.ContainerData, error) {
-	return []*pb.ContainerData{}, nil
+func (d *ExecDriver) ListInstances(ctx context.Context) ([]*pb.InstanceData, error) {
+	return []*pb.InstanceData{}, nil
 }
 

@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -41,12 +42,12 @@ func (s *APIServer) setupRoutes() {
 	protected.Use(JWTAuthMiddleware)
 
 	protected.HandleFunc("/jobs", s.handleListJobs).Methods("GET")
-	protected.HandleFunc("/jobs", s.handleSubmitJob).Methods("POST")
+	protected.HandleFunc("/jobs", s.handleSubmitJob).Methods("POST")	
 	protected.HandleFunc("/jobs/{id}", s.handleGetJob).Methods("GET")
 	protected.HandleFunc("/jobs/{id}/status", s.handleGetJobStatus).Methods("GET")
 	protected.HandleFunc("/jobs/{id}/events", s.handleGetJobEvents).Methods("GET")
-	protected.HandleFunc("/containers", s.handleListContainers).Methods("GET")
-	protected.HandleFunc("/containers/{id}", s.handleGetContainerData).Methods("GET")
+	protected.HandleFunc("/instances", s.handleListInstances).Methods("GET")
+	protected.HandleFunc("/instances/{id}", s.handleGetInstanceData).Methods("GET")
 
 	protected.HandleFunc("/nodes", s.handleListNodes).Methods("GET")
 	protected.HandleFunc("/nodes/{id}", s.handleGetNode).Methods("GET")
@@ -121,7 +122,7 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param status query string false "Filter by status (queued, active, completed)"
+// @Param status query string false "Filter by status (queued, pending, completed, failed)"
 // @Success 200 {object} map[string]interface{}
 // @Failure 500 {object} map[string]string
 // @Router /jobs [get]
@@ -131,6 +132,7 @@ func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
 
 	response := make(map[string]interface{})
 
+	// Queued jobs - waiting in queue to be picked up
 	if statusFilter == "" || statusFilter == "queued" {
 		queueLength, err := s.storage.GetQueueLength(ctx)
 		if err != nil {
@@ -140,6 +142,16 @@ func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if statusFilter == "" || statusFilter == "queued" {
+		queueJobs, err := s.storage.GetQueueJobs(ctx)
+		if err != nil {
+			log.Printf("[Centro REST] Failed to get queue jobs: %v", err)
+		} else {
+			response["queued_jobs"] = queueJobs
+		}
+	}
+
+	// Pending jobs - claimed by agent but not completed yet (assigned/running)
 	if statusFilter == "" || statusFilter == "active" {
 		activeJobs, err := s.storage.GetAllActiveJobs(ctx)
 		if err != nil {
@@ -161,31 +173,68 @@ func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if statusFilter == "" || statusFilter == "completed" {
-		completedCount, err := s.storage.GetJobHistoryCount(ctx)
-		if err != nil {
-			log.Printf("[Centro REST] Failed to get history count: %v", err)
-		} else {
-			response["completed_count"] = completedCount
+	// Get all history to filter by status
+	allHistory, err := s.storage.GetAllJobHistory(ctx)
+	if err != nil {
+		log.Printf("[Centro REST] Failed to get job history: %v", err)
+	} else {
+		// Completed jobs - successfully finished
+		if statusFilter == "" || statusFilter == "completed" {
+			completedJobs := make([]map[string]interface{}, 0)
+			for jobID, status := range allHistory {
+				if status.Status == "completed" {
+					completedJobs = append(completedJobs, map[string]interface{}{
+						"job_id":     jobID,
+						"node_id":    status.NodeID,
+						"status":     status.Status,
+						"detail":     status.Detail,
+						"updated_at": status.UpdatedAt,
+						"claimed_at": status.ClaimedAt,
+						"job":        status.Job,
+					})
+				}
+			}
+			response["completed_jobs"] = completedJobs
+			response["completed_count"] = len(completedJobs)
 		}
 
-		completedJobs, err := s.storage.GetAllJobHistory(ctx)
-		if err != nil {
-			log.Printf("[Centro REST] Failed to get job history: %v", err)
-		} else {
-			jobs := make([]map[string]interface{}, 0, len(completedJobs))
-			for jobID, status := range completedJobs {
-				jobs = append(jobs, map[string]interface{}{
-					"job_id":     jobID,
-					"node_id":    status.NodeID,
-					"status":     status.Status,
-					"detail":     status.Detail,
-					"updated_at": status.UpdatedAt,
-					"claimed_at": status.ClaimedAt,
-					"job":        status.Job,
-				})
+		// Failed jobs - permanently failed (exceeded retries)
+		if statusFilter == "" || statusFilter == "failed" {
+			failedJobs := make([]map[string]interface{}, 0)
+			for jobID, status := range allHistory {
+				if status.Status == "failed" {
+					failedJobs = append(failedJobs, map[string]interface{}{
+						"job_id":     jobID,
+						"node_id":    status.NodeID,
+						"status":     "failed_permanent",
+						"detail":     status.Detail,
+						"updated_at": status.UpdatedAt,
+						"claimed_at": status.ClaimedAt,
+						"job":        status.Job,
+					})
+				}
 			}
-			response["completed_jobs"] = jobs
+
+			// Also include jobs in failed queue (pending retry)
+			failedQueueJobs, err := s.storage.GetAllFailedJobs(ctx)
+			if err != nil {
+				log.Printf("[Centro REST] Failed to get failed queue jobs: %v", err)
+			} else {
+				for _, job := range failedQueueJobs {
+					failedJobs = append(failedJobs, map[string]interface{}{
+						"job_id":     job.JobId,
+						"node_id":    "",
+						"status":     "failed_retrying",
+						"detail":     fmt.Sprintf("Job failed, pending retry (attempt %d/%d)", job.RetryCount, job.MaxRetries),
+						"updated_at": nil,
+						"claimed_at": nil,
+						"job":        job,
+					})
+				}
+			}
+
+			response["failed_jobs"] = failedJobs
+			response["failed_count"] = len(failedJobs)
 		}
 	}
 
@@ -193,17 +242,17 @@ func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 type SubmitJobRequest struct {
-	JobId       string            `json:"job_id" example:"123"`
-	JobName     string            `json:"job_name" example:"web-server-job"`
-	JobType     string            `json:"job_type" example:"service"`
-	SelectedClusters []string          `json:"selected_clusters" example:"dc1,dc2"`
-	Meta        map[string]string `json:"meta"`
-	Driver      string            `json:"driver" example:"podman"`
-	WorkloadType string            `json:"workload_type" example:"container"`
-	Command      string            `json:"command" example:"echo 'Hello World'"`
-	ContainerConfig *ContainerSpecRequest `json:"container_config,omitempty"`
-	Resources *ResourcesRequest `json:"resources,omitempty"`
-	Volumes []VolumeRequest `json:"volumes,omitempty"`
+	JobId            string               `json:"job_id" example:"123"`
+	JobName          string               `json:"job_name" example:"web-server-job"`
+	JobType          string               `json:"job_type" example:"service"`
+	SelectedClusters []string             `json:"selected_clusters" example:"dc1,dc2"`
+	Meta             map[string]string    `json:"meta"`
+	Driver           string               `json:"driver" example:"podman"`
+	WorkloadType     string               `json:"workload_type" example:"container"`
+	Command          string               `json:"command" example:"echo 'Hello World'"`
+	InstanceConfig   *InstanceSpecRequest `json:"instance_config,omitempty"`
+	Resources        *ResourcesRequest    `json:"resources,omitempty"`
+	Volumes          []VolumeRequest      `json:"volumes,omitempty"`
 }
 
 type ResourcesRequest struct {
@@ -214,12 +263,12 @@ type ResourcesRequest struct {
 }
 
 type VolumeRequest struct {
-	HostPath      string `json:"host_path" example:"/data/app"`
-	ContainerPath string `json:"container_path" example:"/usr/share/nginx/html"`
-	ReadOnly      bool   `json:"read_only,omitempty" example:"false"`
+	HostPath     string `json:"host_path" example:"/data/app"`
+	InstancePath string `json:"instance_path" example:"/usr/share/nginx/html"`
+	ReadOnly     bool   `json:"read_only,omitempty" example:"false"`
 }
 
-type ContainerSpecRequest struct {
+type InstanceSpecRequest struct {
 	Image   string            `json:"image" example:"docker.io/library/alpine:latest"`
 	Command []string          `json:"command,omitempty" example:""`
 	Args    []string          `json:"args,omitempty" example:""`
@@ -258,14 +307,17 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		SelectedClusters: req.SelectedClusters,
 		DriverType:       req.Driver,
 		WorkloadType:     req.WorkloadType,
-		Command:          req.Command,		
+		Command:          req.Command,
+		RetryCount:       0,
+		MaxRetries:       3, // Default: retry up to 3 times
+		LastRetryTime:    0,
 	}
-	if req.ContainerConfig != nil {
-		job.ContainerConfig = &pb.ContainerSpec{
-			ImageName:     req.ContainerConfig.Image,
-			Entrypoint:    req.ContainerConfig.Command,
-			Arguments:     req.ContainerConfig.Args,
-			DriverOptions: req.ContainerConfig.Options,
+	if req.InstanceConfig != nil {
+		job.InstanceConfig = &pb.InstanceSpec{
+			ImageName:     req.InstanceConfig.Image,
+			Entrypoint:    req.InstanceConfig.Command,
+			Arguments:     req.InstanceConfig.Args,
+			DriverOptions: req.InstanceConfig.Options,
 		}
 	}
 	if req.Resources != nil {
@@ -281,7 +333,7 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		for _, v := range req.Volumes {
 			job.VolumeMounts = append(job.VolumeMounts, &pb.Volume{
 				SourcePath: v.HostPath,
-				TargetPath: v.ContainerPath,
+				TargetPath: v.InstancePath,
 				ReadOnly:   v.ReadOnly,
 			})
 		}
@@ -328,6 +380,11 @@ func (s *APIServer) handleGetJob(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[Centro REST] Failed to get active job: %v", err)
 	}
 
+	events, err := s.storage.GetJobEvents(ctx, jobID)
+	if err != nil {
+		log.Printf("[Centro REST] Failed to get job events: %v", err)
+	}
+
 	if activeJob != nil {
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{
 			"job_id":     jobID,
@@ -337,6 +394,46 @@ func (s *APIServer) handleGetJob(w http.ResponseWriter, r *http.Request) {
 			"updated_at": activeJob.UpdatedAt,
 			"claimed_at": activeJob.ClaimedAt,
 			"job":        activeJob.Job,
+			"events":     events,
+		})
+		return
+	}
+	
+	queueJob, err := s.storage.GetQueueJob(ctx, jobID)
+	if err != nil {
+		log.Printf("[Centro REST] Failed to get queue job: %v", err)
+	}
+
+	if queueJob != nil {
+		respondWithJSON(w, http.StatusOK, map[string]interface{}{
+			"job_id":     jobID,
+			"status":     "queued",
+			"node_id":    "",
+			"detail":     fmt.Sprintf("Job queued (attempt %d/%d)", queueJob.RetryCount, queueJob.MaxRetries),
+			"updated_at": nil,
+			"claimed_at": nil,
+			"job":        queueJob,
+			"events":     events,
+		})
+		return
+	}
+
+	failedJob, err := s.storage.GetFailedJob(ctx, jobID)
+	log.Printf("[Centro REST] Failed job: %v", failedJob)
+	if err != nil {
+		log.Printf("[Centro REST] Failed to get failed job: %v", err)
+	}
+
+	if failedJob != nil {
+		respondWithJSON(w, http.StatusOK, map[string]interface{}{
+			"job_id":     jobID,
+			"status":     "failed",
+			"node_id":    "",
+			"detail":     fmt.Sprintf("Job failed, pending retry (attempt %d/%d)", failedJob.RetryCount, failedJob.MaxRetries),
+			"updated_at": nil,
+			"claimed_at": nil,
+			"job":        failedJob,
+			"events":     events,
 		})
 		return
 	}
@@ -355,6 +452,7 @@ func (s *APIServer) handleGetJob(w http.ResponseWriter, r *http.Request) {
 			"updated_at": historyJob.UpdatedAt,
 			"claimed_at": historyJob.ClaimedAt,
 			"job":        historyJob.Job,
+			"events":     events,
 		})
 		return
 	}
@@ -414,27 +512,27 @@ func (s *APIServer) handleGetJobStatus(w http.ResponseWriter, r *http.Request) {
 	respondWithError(w, http.StatusNotFound, "Job not found")
 }
 
-// handleListContainers godoc
-// @Summary List all containers
-// @Description Get a list of all containers in the cluster
-// @Tags Containers
+// handleListInstances godoc
+// @Summary List all instances
+// @Description Get a list of all instances in the cluster
+// @Tags Instances
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} map[string]interface{}
 // @Failure 500 {object} map[string]string
-// @Router /containers [get]
-func (s *APIServer) handleListContainers(w http.ResponseWriter, r *http.Request) {
+// @Router /instances [get]
+func (s *APIServer) handleListInstances(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
-	containers, err := s.storage.GetListOfContainers(ctx)
+	instances, err := s.storage.GetListOfInstances(ctx)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get containers: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve containers")
+		log.Printf("[Centro REST] Failed to get instances: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve instances")
 		return
 	}
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"containers": containers,
-		"count": len(containers),
+		"instances": instances,
+		"count":     len(instances),
 	})
 }
 
@@ -512,31 +610,31 @@ func extractEventMessage(event string) string {
 	return event[idx+2:]
 }
 
-// handleGetContainerData godoc
-// @Summary Get container data for a job
-// @Description Retrieves the container data associated with a specific job
-// @Tags Containers
+// handleGetInstanceData godoc
+// @Summary Get instance data for a job
+// @Description Retrieves the instance data associated with a specific job
+// @Tags Instances
 // @Security BearerAuth
 // @Produce json
-// @Param id path string true "Container ID"
+// @Param id path string true "Instance ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /containers/{id} [get]
-func (s *APIServer) handleGetContainerData(w http.ResponseWriter, r *http.Request) {
+// @Router /instances/{id} [get]
+func (s *APIServer) handleGetInstanceData(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	jobID := vars["id"]
 
 	ctx := context.Background()
-	containerData, err := s.storage.GetContainerData(ctx, jobID)
+	instanceData, err := s.storage.GetInstanceData(ctx, jobID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get container data: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve container data")
+		log.Printf("[Centro REST] Failed to get instance data: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve instance data")
 		return
 	}
 
-	if containerData == nil {
-		respondWithError(w, http.StatusNotFound, "Container data not found for this job")
+	if instanceData == nil {
+		respondWithError(w, http.StatusNotFound, "Instance data not found for this job")
 		return
 	}
 
@@ -548,9 +646,9 @@ func (s *APIServer) handleGetContainerData(w http.ResponseWriter, r *http.Reques
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"job_id":         jobID,
-		"container_data": containerData,
-		"events": events,
+		"job_id":        jobID,
+		"instance_data": instanceData,
+		"events":        events,
 	})
 }
 

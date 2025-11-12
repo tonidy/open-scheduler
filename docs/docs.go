@@ -76,14 +76,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/containers": {
+        "/instances": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get a list of all containers in the cluster",
+                "description": "Get a list of all instances in the cluster",
                 "consumes": [
                     "application/json"
                 ],
@@ -91,9 +91,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Containers"
+                    "Instances"
                 ],
-                "summary": "List all containers",
+                "summary": "List all instances",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -114,25 +114,25 @@ const docTemplate = `{
                 }
             }
         },
-        "/containers/{id}": {
+        "/instances/{id}": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves the container data associated with a specific job",
+                "description": "Retrieves the instance data associated with a specific job",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Containers"
+                    "Instances"
                 ],
-                "summary": "Get container data for a job",
+                "summary": "Get instance data for a job",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Container ID",
+                        "description": "Instance ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -188,7 +188,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by status (queued, active, completed)",
+                        "description": "Filter by status (queued, pending, completed, failed)",
                         "name": "status",
                         "in": "query"
                     }
@@ -600,7 +600,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "rest.ContainerSpecRequest": {
+        "rest.InstanceSpecRequest": {
             "type": "object",
             "properties": {
                 "args": {
@@ -688,12 +688,12 @@ const docTemplate = `{
                     "type": "string",
                     "example": "echo 'Hello World'"
                 },
-                "container_config": {
-                    "$ref": "#/definitions/rest.ContainerSpecRequest"
-                },
                 "driver": {
                     "type": "string",
                     "example": "podman"
+                },
+                "instance_config": {
+                    "$ref": "#/definitions/rest.InstanceSpecRequest"
                 },
                 "job_id": {
                     "type": "string",
@@ -741,13 +741,13 @@ const docTemplate = `{
         "rest.VolumeRequest": {
             "type": "object",
             "properties": {
-                "container_path": {
-                    "type": "string",
-                    "example": "/usr/share/nginx/html"
-                },
                 "host_path": {
                     "type": "string",
                     "example": "/data/app"
+                },
+                "instance_path": {
+                    "type": "string",
+                    "example": "/usr/share/nginx/html"
                 },
                 "read_only": {
                     "type": "boolean",

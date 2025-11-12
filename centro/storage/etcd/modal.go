@@ -1,7 +1,8 @@
 package etcd
 
-type ContainerItem struct {
-	ContainerName string `json:"container_name"`	
-	Status        string `json:"status"`
-	Created       string `json:"created"`
+type InstanceItem struct {
+	JobID        string `json:"job_id"`
+	InstanceName string `json:"instance_name"`
+	Status       string `json:"status"`
+	Created      string `json:"created"`
 }

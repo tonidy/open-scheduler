@@ -19,6 +19,18 @@ go build -o centro_server ./centro
 echo "==> Building Agent client..."
 go build -o agent_client ./agent
 
+# echo "==> Building Panel..."
+# cd panel
+# npm install
+# npm run build
+# cd ..
+
+echo "==> Starting Panel in background..."
+cd panel
+npm run dev > panel.log 2>&1 &
+PANEL_PID=$!
+echo "Panel PID: $PANEL_PID"
+cd ..
 
 
 echo "==> Starting Centro server in background..."
@@ -39,5 +51,6 @@ echo "   Tail server logs: tail -f centro_server.log"
 echo "   Tail agent logs:  tail -f agent_client.log"
 echo ""
 echo "==> To stop all, run: kill $CENTRO_PID $AGENT_PID"
-
+echo "==> access panel at: http://localhost:3000"
+echo "==> access swagger at: http://localhost:8080/swagger/index.html"
 wait

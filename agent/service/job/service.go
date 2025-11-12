@@ -47,11 +47,13 @@ func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID strin
 	driver, err := taskdriver.NewDriver(job.DriverType)
 	if err != nil {
 		// Report failure to Centro
-		s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Failed to create driver: %v", err))
+		errMsg := fmt.Sprintf("Failed to create driver '%s': %v", job.DriverType, err)
+		log.Printf("[GetJobService] Job %s failed: %s", job.JobId, errMsg)
+		s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", errMsg)
 		return fmt.Errorf("failed to create driver for job %s: %w", job.JobName, err)
 	}
 
-	log.Printf("[GetJobService] Running job: %s with driver: %s", job.JobName, job.DriverType)
+	log.Printf("[GetJobService] Running job: %s (%s) with driver: %s", job.JobName, job.JobId, job.DriverType)
 
 	s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running job: %s", job.JobName))
 
@@ -59,7 +61,9 @@ func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID strin
 	err = driver.Run(ctx, job)
 	if err != nil {
 		// Report failure to Centro
-		s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Job failed: %v", err))
+		errMsg := fmt.Sprintf("Job execution failed: %v", err)
+		log.Printf("[GetJobService] Job %s (%s) failed: %s", job.JobName, job.JobId, errMsg)
+		s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", errMsg)
 		return fmt.Errorf("failed to run job %s: %w", job.JobName, err)
 	}
 

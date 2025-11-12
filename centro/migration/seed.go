@@ -18,7 +18,7 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 		SelectedClusters: []string{"default"},
 		DriverType:       "podman",
 		WorkloadType:     "container",
-		ContainerConfig: &pb.ContainerSpec{
+		InstanceConfig: &pb.InstanceSpec{
 			ImageName: "docker.io/library/alpine:latest",
 			DriverOptions: map[string]string{
 				"command": "echo 'Hello from test job!'",
@@ -36,6 +36,8 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 		JobMetadata: map[string]string{
 			"owner": "system",
 		},
+		RetryCount:       0,
+		MaxRetries:       3,				
 	}
 	centroServer.AddJob(testJob)
 
@@ -46,7 +48,7 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 		SelectedClusters: []string{"test-cluster"},
 		DriverType:       "podman",
 		WorkloadType:     "container",
-		ContainerConfig: &pb.ContainerSpec{
+		InstanceConfig: &pb.InstanceSpec{
 			ImageName: "docker.io/library/ubuntu:latest",
 			DriverOptions: map[string]string{
 				"command": "echo 'Hello from test job 2!'",
@@ -58,6 +60,8 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 			CpuLimitCores:    1.0,
 			CpuReservedCores: 0.5,
 		},
+		RetryCount:       0,
+		MaxRetries:       3,				
 	}
 	centroServer.AddJob(testJob2)
 

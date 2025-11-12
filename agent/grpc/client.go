@@ -163,7 +163,7 @@ func (c *GrpcClient) UpdateStatus(ctx context.Context, nodeID string, token stri
 	return resp, nil
 }
 
-func (c *GrpcClient) SetContainerData(ctx context.Context, nodeID string, token string, jobID string, containerData *pb.ContainerData, timestamp int64) (*pb.SetContainerDataResponse, error) {
+func (c *GrpcClient) SetInstanceData(ctx context.Context, nodeID string, token string, jobID string, instanceData *pb.InstanceData, timestamp int64) (*pb.SetInstanceDataResponse, error) {
 	c.mu.RLock()
 	client := c.client
 	c.mu.RUnlock()
@@ -177,22 +177,22 @@ func (c *GrpcClient) SetContainerData(ctx context.Context, nodeID string, token 
 	})
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	req := &pb.SetContainerDataRequest{
-		NodeId:        nodeID,
-		JobId:         jobID,
-		ContainerData: containerData,
-		Timestamp:     timestamp,
+	req := &pb.SetInstanceDataRequest{
+		NodeId:       nodeID,
+		JobId:        jobID,
+		InstanceData: instanceData,
+		Timestamp:    timestamp,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	resp, err := client.SetContainerData(ctx, req)
+	resp, err := client.SetInstanceData(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("SetContainerData RPC failed: %w", err)
+		return nil, fmt.Errorf("SetInstanceData RPC failed: %w", err)
 	}
 
-	log.Printf("[GrpcClient] SetContainerData response: acknowledged=%v, message=%s", resp.Acknowledged, resp.ResponseMessage)
+	log.Printf("[GrpcClient] SetInstanceData response: acknowledged=%v, message=%s", resp.Acknowledged, resp.ResponseMessage)
 
 	return resp, nil
 }

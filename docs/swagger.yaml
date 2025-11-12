@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  rest.ContainerSpecRequest:
+  rest.InstanceSpecRequest:
     properties:
       args:
         example:
@@ -60,11 +60,11 @@ definitions:
       command:
         example: echo 'Hello World'
         type: string
-      container_config:
-        $ref: '#/definitions/rest.ContainerSpecRequest'
       driver:
         example: podman
         type: string
+      instance_config:
+        $ref: '#/definitions/rest.InstanceSpecRequest'
       job_id:
         example: "123"
         type: string
@@ -97,11 +97,11 @@ definitions:
     type: object
   rest.VolumeRequest:
     properties:
-      container_path:
-        example: /usr/share/nginx/html
-        type: string
       host_path:
         example: /data/app
+        type: string
+      instance_path:
+        example: /usr/share/nginx/html
         type: string
       read_only:
         example: false
@@ -155,11 +155,11 @@ paths:
       summary: Login to get JWT token
       tags:
       - Authentication
-  /containers:
+  /instances:
     get:
       consumes:
       - application/json
-      description: Get a list of all containers in the cluster
+      description: Get a list of all instances in the cluster
       produces:
       - application/json
       responses:
@@ -176,14 +176,14 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: List all containers
+      summary: List all instances
       tags:
-      - Containers
-  /containers/{id}:
+      - Instances
+  /instances/{id}:
     get:
-      description: Retrieves the container data associated with a specific job
+      description: Retrieves the instance data associated with a specific job
       parameters:
-      - description: Container ID
+      - description: Instance ID
         in: path
         name: id
         required: true
@@ -210,16 +210,16 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Get container data for a job
+      summary: Get instance data for a job
       tags:
-      - Containers
+      - Instances
   /jobs:
     get:
       consumes:
       - application/json
       description: Get a list of all jobs with optional status filter
       parameters:
-      - description: Filter by status (queued, active, completed)
+      - description: Filter by status (queued, pending, completed, failed)
         in: query
         name: status
         type: string

@@ -11,7 +11,7 @@ import (
 	"github.com/open-scheduler/agent/commands"
 	agentgrpc "github.com/open-scheduler/agent/grpc"
 	cleanupservice "github.com/open-scheduler/agent/service/cleanup"
-	containerservice "github.com/open-scheduler/agent/service/container"
+	instanceservice "github.com/open-scheduler/agent/service/instance"
 	statusservice "github.com/open-scheduler/agent/service/status"
 	"github.com/open-scheduler/agent/taskdriver"
 )
@@ -96,9 +96,9 @@ func main() {
 		log.Fatalf("Failed to create UpdateStatusService: %v", err)
 	}
 
-	containerService, err := containerservice.NewSetContainerDataService(grpcClient, driver, token, nodeID)
+	instanceService, err := instanceservice.NewSetInstanceDataService(grpcClient, driver, token, nodeID)
 	if err != nil {
-		log.Fatalf("Failed to create SetContainerDataService: %v", err)
+		log.Fatalf("Failed to create SetInstanceDataService: %v", err)
 	}
 
 	cleanupService, err := cleanupservice.NewCleanupService(driver, nodeID)
@@ -109,8 +109,8 @@ func main() {
 	executor.Register(commands.NewHeartbeatCommand(grpcClient))
 	executor.Register(commands.NewGetJobCommand(grpcClient))
 	executor.Register(commands.NewUpdateStatusCommand(statusService))
-	executor.Register(commands.NewSetContainerDataCommand(containerService))
-	executor.Register(commands.NewCleanUpContainersCommand(cleanupService))
+	executor.Register(commands.NewSetInstanceDataCommand(instanceService))
+	executor.Register(commands.NewCleanUpInstancesCommand(cleanupService))
 
 	executor.StartScheduler(ctx)
 

@@ -27,6 +27,11 @@ etcd.log
 # Dependency directories
 vendor/
 
+panel/panel.log
+panel/node_modules
+panel/dist
+panel/package-lock.json
+
 # Go workspace file
 go.work
 

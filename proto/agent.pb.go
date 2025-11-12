@@ -211,7 +211,7 @@ func (x *GetJobRequest) GetNodeId() string {
 	return ""
 }
 
-// Job specification - simplified model where each job runs exactly one container
+// Job specification - simplified model where each job runs exactly one instance (container or VM)
 type Job struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	JobId            string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
@@ -219,16 +219,20 @@ type Job struct {
 	JobType          string                 `protobuf:"bytes,3,opt,name=job_type,json=jobType,proto3" json:"job_type,omitempty"`                            // Job type: "service", "batch", etc.
 	SelectedClusters []string               `protobuf:"bytes,4,rep,name=selected_clusters,json=selectedClusters,proto3" json:"selected_clusters,omitempty"` // Clusters where this job can run (empty = any cluster)
 	// Job execution configuration (merged from Task)
-	DriverType           string            `protobuf:"bytes,5,opt,name=driver_type,json=driverType,proto3" json:"driver_type,omitempty"` // Driver type: "podman", "incus", "exec"
-	Command              string            `protobuf:"bytes,6,opt,name=command,proto3" json:"command,omitempty"`                         // Command or script to execute
-	ContainerConfig      *ContainerSpec    `protobuf:"bytes,7,opt,name=container_config,json=containerConfig,proto3" json:"container_config,omitempty"`
+	DriverType           string            `protobuf:"bytes,5,opt,name=driver_type,json=driverType,proto3" json:"driver_type,omitempty"`             // Driver type: "podman", "incus", "exec"
+	Command              string            `protobuf:"bytes,6,opt,name=command,proto3" json:"command,omitempty"`                                     // Command or script to execute
+	InstanceConfig       *InstanceSpec     `protobuf:"bytes,7,opt,name=instance_config,json=instanceConfig,proto3" json:"instance_config,omitempty"` // Instance configuration (for containers, VMs, etc.)
 	EnvironmentVariables map[string]string `protobuf:"bytes,8,rep,name=environment_variables,json=environmentVariables,proto3" json:"environment_variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	ResourceRequirements *Resources        `protobuf:"bytes,9,opt,name=resource_requirements,json=resourceRequirements,proto3" json:"resource_requirements,omitempty"`
 	VolumeMounts         []*Volume         `protobuf:"bytes,10,rep,name=volume_mounts,json=volumeMounts,proto3" json:"volume_mounts,omitempty"`
 	WorkloadType         string            `protobuf:"bytes,11,opt,name=workload_type,json=workloadType,proto3" json:"workload_type,omitempty"`                                                                        // Workload type: "container", "vm", "process"
 	JobMetadata          map[string]string `protobuf:"bytes,12,rep,name=job_metadata,json=jobMetadata,proto3" json:"job_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Job-level metadata
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Job retry and failure tracking
+	RetryCount    int32 `protobuf:"varint,13,opt,name=retry_count,json=retryCount,proto3" json:"retry_count,omitempty"`            // Number of times this job has been retried
+	MaxRetries    int32 `protobuf:"varint,14,opt,name=max_retries,json=maxRetries,proto3" json:"max_retries,omitempty"`            // Maximum number of retries allowed (0 = no limit)
+	LastRetryTime int64 `protobuf:"varint,15,opt,name=last_retry_time,json=lastRetryTime,proto3" json:"last_retry_time,omitempty"` // Unix timestamp of last retry attempt
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Job) Reset() {
@@ -303,9 +307,9 @@ func (x *Job) GetCommand() string {
 	return ""
 }
 
-func (x *Job) GetContainerConfig() *ContainerSpec {
+func (x *Job) GetInstanceConfig() *InstanceSpec {
 	if x != nil {
-		return x.ContainerConfig
+		return x.InstanceConfig
 	}
 	return nil
 }
@@ -343,6 +347,27 @@ func (x *Job) GetJobMetadata() map[string]string {
 		return x.JobMetadata
 	}
 	return nil
+}
+
+func (x *Job) GetRetryCount() int32 {
+	if x != nil {
+		return x.RetryCount
+	}
+	return 0
+}
+
+func (x *Job) GetMaxRetries() int32 {
+	if x != nil {
+		return x.MaxRetries
+	}
+	return 0
+}
+
+func (x *Job) GetLastRetryTime() int64 {
+	if x != nil {
+		return x.LastRetryTime
+	}
+	return 0
 }
 
 // Resource requirements and limits for job execution
@@ -414,11 +439,11 @@ func (x *Resources) GetCpuReservedCores() float32 {
 	return 0
 }
 
-// Volume mount specification for binding host paths to container/VM paths
+// Volume mount specification for binding host paths to instance/VM paths
 type Volume struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SourcePath    string                 `protobuf:"bytes,1,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"` // Path on the host system
-	TargetPath    string                 `protobuf:"bytes,2,opt,name=target_path,json=targetPath,proto3" json:"target_path,omitempty"` // Path inside the container/VM
+	TargetPath    string                 `protobuf:"bytes,2,opt,name=target_path,json=targetPath,proto3" json:"target_path,omitempty"` // Path inside the instance/VM
 	ReadOnly      bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`      // Whether the mount is read-only
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -475,31 +500,31 @@ func (x *Volume) GetReadOnly() bool {
 	return false
 }
 
-// Container/image specification for containerized workloads
-type ContainerSpec struct {
+// Instance specification for containerized or VM workloads
+type InstanceSpec struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ImageName     string                 `protobuf:"bytes,1,opt,name=image_name,json=imageName,proto3" json:"image_name,omitempty"`                                                                                       // Container image (e.g., "nginx:latest")
-	Entrypoint    []string               `protobuf:"bytes,2,rep,name=entrypoint,proto3" json:"entrypoint,omitempty"`                                                                                                      // Entrypoint command to run in the container
+	ImageName     string                 `protobuf:"bytes,1,opt,name=image_name,json=imageName,proto3" json:"image_name,omitempty"`                                                                                       // Image name (e.g., "nginx:latest" for containers, VM image for VMs)
+	Entrypoint    []string               `protobuf:"bytes,2,rep,name=entrypoint,proto3" json:"entrypoint,omitempty"`                                                                                                      // Entrypoint command to run in the instance
 	Arguments     []string               `protobuf:"bytes,3,rep,name=arguments,proto3" json:"arguments,omitempty"`                                                                                                        // Arguments for the entrypoint command
 	DriverOptions map[string]string      `protobuf:"bytes,4,rep,name=driver_options,json=driverOptions,proto3" json:"driver_options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Driver-specific configuration options
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ContainerSpec) Reset() {
-	*x = ContainerSpec{}
+func (x *InstanceSpec) Reset() {
+	*x = InstanceSpec{}
 	mi := &file_proto_agent_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ContainerSpec) String() string {
+func (x *InstanceSpec) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ContainerSpec) ProtoMessage() {}
+func (*InstanceSpec) ProtoMessage() {}
 
-func (x *ContainerSpec) ProtoReflect() protoreflect.Message {
+func (x *InstanceSpec) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_agent_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -511,33 +536,33 @@ func (x *ContainerSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ContainerSpec.ProtoReflect.Descriptor instead.
-func (*ContainerSpec) Descriptor() ([]byte, []int) {
+// Deprecated: Use InstanceSpec.ProtoReflect.Descriptor instead.
+func (*InstanceSpec) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ContainerSpec) GetImageName() string {
+func (x *InstanceSpec) GetImageName() string {
 	if x != nil {
 		return x.ImageName
 	}
 	return ""
 }
 
-func (x *ContainerSpec) GetEntrypoint() []string {
+func (x *InstanceSpec) GetEntrypoint() []string {
 	if x != nil {
 		return x.Entrypoint
 	}
 	return nil
 }
 
-func (x *ContainerSpec) GetArguments() []string {
+func (x *InstanceSpec) GetArguments() []string {
 	if x != nil {
 		return x.Arguments
 	}
 	return nil
 }
 
-func (x *ContainerSpec) GetDriverOptions() map[string]string {
+func (x *InstanceSpec) GetDriverOptions() map[string]string {
 	if x != nil {
 		return x.DriverOptions
 	}
@@ -733,42 +758,42 @@ func (x *UpdateStatusResponse) GetResponseMessage() string {
 	return ""
 }
 
-// Container inspection data sent from Agent to Centro after container is running
-type ContainerData struct {
+// Instance inspection data sent from Agent to Centro after instance is running
+type InstanceData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ContainerId   string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`                                               // Container ID
-	ContainerName string                 `protobuf:"bytes,2,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`                                         // Container name
+	InstanceId    string                 `protobuf:"bytes,1,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`                                                  // Instance ID
+	InstanceName  string                 `protobuf:"bytes,2,opt,name=instance_name,json=instanceName,proto3" json:"instance_name,omitempty"`                                            // Instance name
 	Image         string                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`                                                                              // Full image identifier
 	ImageName     string                 `protobuf:"bytes,4,opt,name=image_name,json=imageName,proto3" json:"image_name,omitempty"`                                                     // Image name (e.g., "nginx:latest")
-	Command       []string               `protobuf:"bytes,5,rep,name=command,proto3" json:"command,omitempty"`                                                                          // Command executed in container
+	Command       []string               `protobuf:"bytes,5,rep,name=command,proto3" json:"command,omitempty"`                                                                          // Command executed in instance
 	Args          []string               `protobuf:"bytes,6,rep,name=args,proto3" json:"args,omitempty"`                                                                                // Arguments passed to command
 	Created       string                 `protobuf:"bytes,7,opt,name=created,proto3" json:"created,omitempty"`                                                                          // Creation timestamp
-	StartedAt     string                 `protobuf:"bytes,8,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`                                                     // Container start timestamp
-	FinishedAt    string                 `protobuf:"bytes,9,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`                                                  // Container finish timestamp (if stopped)
-	Status        string                 `protobuf:"bytes,10,opt,name=status,proto3" json:"status,omitempty"`                                                                           // Container status: "running", "stopped", "exited", "failed"
+	StartedAt     string                 `protobuf:"bytes,8,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`                                                     // Instance start timestamp
+	FinishedAt    string                 `protobuf:"bytes,9,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`                                                  // Instance finish timestamp (if stopped)
+	Status        string                 `protobuf:"bytes,10,opt,name=status,proto3" json:"status,omitempty"`                                                                           // Instance status: "running", "stopped", "exited", "failed"
 	ExitCode      int32                  `protobuf:"varint,11,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`                                                      // Exit code (if stopped)
 	Pid           int32                  `protobuf:"varint,12,opt,name=pid,proto3" json:"pid,omitempty"`                                                                                // Process ID
-	Labels        map[string]string      `protobuf:"bytes,13,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Container labels
+	Labels        map[string]string      `protobuf:"bytes,13,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Instance labels
 	Ports         []string               `protobuf:"bytes,14,rep,name=ports,proto3" json:"ports,omitempty"`                                                                             // Exposed ports
 	Volumes       []string               `protobuf:"bytes,15,rep,name=volumes,proto3" json:"volumes,omitempty"`                                                                         // Mounted volumes
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ContainerData) Reset() {
-	*x = ContainerData{}
+func (x *InstanceData) Reset() {
+	*x = InstanceData{}
 	mi := &file_proto_agent_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ContainerData) String() string {
+func (x *InstanceData) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ContainerData) ProtoMessage() {}
+func (*InstanceData) ProtoMessage() {}
 
-func (x *ContainerData) ProtoReflect() protoreflect.Message {
+func (x *InstanceData) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_agent_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -780,140 +805,140 @@ func (x *ContainerData) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ContainerData.ProtoReflect.Descriptor instead.
-func (*ContainerData) Descriptor() ([]byte, []int) {
+// Deprecated: Use InstanceData.ProtoReflect.Descriptor instead.
+func (*InstanceData) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *ContainerData) GetContainerId() string {
+func (x *InstanceData) GetInstanceId() string {
 	if x != nil {
-		return x.ContainerId
+		return x.InstanceId
 	}
 	return ""
 }
 
-func (x *ContainerData) GetContainerName() string {
+func (x *InstanceData) GetInstanceName() string {
 	if x != nil {
-		return x.ContainerName
+		return x.InstanceName
 	}
 	return ""
 }
 
-func (x *ContainerData) GetImage() string {
+func (x *InstanceData) GetImage() string {
 	if x != nil {
 		return x.Image
 	}
 	return ""
 }
 
-func (x *ContainerData) GetImageName() string {
+func (x *InstanceData) GetImageName() string {
 	if x != nil {
 		return x.ImageName
 	}
 	return ""
 }
 
-func (x *ContainerData) GetCommand() []string {
+func (x *InstanceData) GetCommand() []string {
 	if x != nil {
 		return x.Command
 	}
 	return nil
 }
 
-func (x *ContainerData) GetArgs() []string {
+func (x *InstanceData) GetArgs() []string {
 	if x != nil {
 		return x.Args
 	}
 	return nil
 }
 
-func (x *ContainerData) GetCreated() string {
+func (x *InstanceData) GetCreated() string {
 	if x != nil {
 		return x.Created
 	}
 	return ""
 }
 
-func (x *ContainerData) GetStartedAt() string {
+func (x *InstanceData) GetStartedAt() string {
 	if x != nil {
 		return x.StartedAt
 	}
 	return ""
 }
 
-func (x *ContainerData) GetFinishedAt() string {
+func (x *InstanceData) GetFinishedAt() string {
 	if x != nil {
 		return x.FinishedAt
 	}
 	return ""
 }
 
-func (x *ContainerData) GetStatus() string {
+func (x *InstanceData) GetStatus() string {
 	if x != nil {
 		return x.Status
 	}
 	return ""
 }
 
-func (x *ContainerData) GetExitCode() int32 {
+func (x *InstanceData) GetExitCode() int32 {
 	if x != nil {
 		return x.ExitCode
 	}
 	return 0
 }
 
-func (x *ContainerData) GetPid() int32 {
+func (x *InstanceData) GetPid() int32 {
 	if x != nil {
 		return x.Pid
 	}
 	return 0
 }
 
-func (x *ContainerData) GetLabels() map[string]string {
+func (x *InstanceData) GetLabels() map[string]string {
 	if x != nil {
 		return x.Labels
 	}
 	return nil
 }
 
-func (x *ContainerData) GetPorts() []string {
+func (x *InstanceData) GetPorts() []string {
 	if x != nil {
 		return x.Ports
 	}
 	return nil
 }
 
-func (x *ContainerData) GetVolumes() []string {
+func (x *InstanceData) GetVolumes() []string {
 	if x != nil {
 		return x.Volumes
 	}
 	return nil
 }
 
-type SetContainerDataRequest struct {
+type SetInstanceDataRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                      // Node ID where container is running
-	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`                         // Job ID associated with the container
-	ContainerData *ContainerData         `protobuf:"bytes,3,opt,name=container_data,json=containerData,proto3" json:"container_data,omitempty"` // Container inspection data
-	Timestamp     int64                  `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                             // Timestamp when data was collected
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                   // Node ID where instance is running
+	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`                      // Job ID associated with the instance
+	InstanceData  *InstanceData          `protobuf:"bytes,3,opt,name=instance_data,json=instanceData,proto3" json:"instance_data,omitempty"` // Instance inspection data
+	Timestamp     int64                  `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                          // Timestamp when data was collected
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SetContainerDataRequest) Reset() {
-	*x = SetContainerDataRequest{}
+func (x *SetInstanceDataRequest) Reset() {
+	*x = SetInstanceDataRequest{}
 	mi := &file_proto_agent_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SetContainerDataRequest) String() string {
+func (x *SetInstanceDataRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SetContainerDataRequest) ProtoMessage() {}
+func (*SetInstanceDataRequest) ProtoMessage() {}
 
-func (x *SetContainerDataRequest) ProtoReflect() protoreflect.Message {
+func (x *SetInstanceDataRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_agent_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -925,40 +950,40 @@ func (x *SetContainerDataRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SetContainerDataRequest.ProtoReflect.Descriptor instead.
-func (*SetContainerDataRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SetInstanceDataRequest.ProtoReflect.Descriptor instead.
+func (*SetInstanceDataRequest) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *SetContainerDataRequest) GetNodeId() string {
+func (x *SetInstanceDataRequest) GetNodeId() string {
 	if x != nil {
 		return x.NodeId
 	}
 	return ""
 }
 
-func (x *SetContainerDataRequest) GetJobId() string {
+func (x *SetInstanceDataRequest) GetJobId() string {
 	if x != nil {
 		return x.JobId
 	}
 	return ""
 }
 
-func (x *SetContainerDataRequest) GetContainerData() *ContainerData {
+func (x *SetInstanceDataRequest) GetInstanceData() *InstanceData {
 	if x != nil {
-		return x.ContainerData
+		return x.InstanceData
 	}
 	return nil
 }
 
-func (x *SetContainerDataRequest) GetTimestamp() int64 {
+func (x *SetInstanceDataRequest) GetTimestamp() int64 {
 	if x != nil {
 		return x.Timestamp
 	}
 	return 0
 }
 
-type SetContainerDataResponse struct {
+type SetInstanceDataResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Acknowledged    bool                   `protobuf:"varint,1,opt,name=acknowledged,proto3" json:"acknowledged,omitempty"`
 	ResponseMessage string                 `protobuf:"bytes,2,opt,name=response_message,json=responseMessage,proto3" json:"response_message,omitempty"`
@@ -966,20 +991,20 @@ type SetContainerDataResponse struct {
 	sizeCache       protoimpl.SizeCache
 }
 
-func (x *SetContainerDataResponse) Reset() {
-	*x = SetContainerDataResponse{}
+func (x *SetInstanceDataResponse) Reset() {
+	*x = SetInstanceDataResponse{}
 	mi := &file_proto_agent_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SetContainerDataResponse) String() string {
+func (x *SetInstanceDataResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SetContainerDataResponse) ProtoMessage() {}
+func (*SetInstanceDataResponse) ProtoMessage() {}
 
-func (x *SetContainerDataResponse) ProtoReflect() protoreflect.Message {
+func (x *SetInstanceDataResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_agent_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -991,19 +1016,19 @@ func (x *SetContainerDataResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SetContainerDataResponse.ProtoReflect.Descriptor instead.
-func (*SetContainerDataResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use SetInstanceDataResponse.ProtoReflect.Descriptor instead.
+func (*SetInstanceDataResponse) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *SetContainerDataResponse) GetAcknowledged() bool {
+func (x *SetInstanceDataResponse) GetAcknowledged() bool {
 	if x != nil {
 		return x.Acknowledged
 	}
 	return false
 }
 
-func (x *SetContainerDataResponse) GetResponseMessage() string {
+func (x *SetInstanceDataResponse) GetResponseMessage() string {
 	if x != nil {
 		return x.ResponseMessage
 	}
@@ -1030,7 +1055,7 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
 	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage\"(\n" +
 	"\rGetJobRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xd3\x05\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xba\x06\n" +
 	"\x03Job\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x19\n" +
 	"\bjob_name\x18\x02 \x01(\tR\ajobName\x12\x19\n" +
@@ -1038,14 +1063,19 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\x11selected_clusters\x18\x04 \x03(\tR\x10selectedClusters\x12\x1f\n" +
 	"\vdriver_type\x18\x05 \x01(\tR\n" +
 	"driverType\x12\x18\n" +
-	"\acommand\x18\x06 \x01(\tR\acommand\x12C\n" +
-	"\x10container_config\x18\a \x01(\v2\x18.scheduler.ContainerSpecR\x0fcontainerConfig\x12]\n" +
+	"\acommand\x18\x06 \x01(\tR\acommand\x12@\n" +
+	"\x0finstance_config\x18\a \x01(\v2\x17.scheduler.InstanceSpecR\x0einstanceConfig\x12]\n" +
 	"\x15environment_variables\x18\b \x03(\v2(.scheduler.Job.EnvironmentVariablesEntryR\x14environmentVariables\x12I\n" +
 	"\x15resource_requirements\x18\t \x01(\v2\x14.scheduler.ResourcesR\x14resourceRequirements\x126\n" +
 	"\rvolume_mounts\x18\n" +
 	" \x03(\v2\x11.scheduler.VolumeR\fvolumeMounts\x12#\n" +
 	"\rworkload_type\x18\v \x01(\tR\fworkloadType\x12B\n" +
-	"\fjob_metadata\x18\f \x03(\v2\x1f.scheduler.Job.JobMetadataEntryR\vjobMetadata\x1aG\n" +
+	"\fjob_metadata\x18\f \x03(\v2\x1f.scheduler.Job.JobMetadataEntryR\vjobMetadata\x12\x1f\n" +
+	"\vretry_count\x18\r \x01(\x05R\n" +
+	"retryCount\x12\x1f\n" +
+	"\vmax_retries\x18\x0e \x01(\x05R\n" +
+	"maxRetries\x12&\n" +
+	"\x0flast_retry_time\x18\x0f \x01(\x03R\rlastRetryTime\x1aG\n" +
 	"\x19EnvironmentVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
@@ -1062,15 +1092,15 @@ const file_proto_agent_proto_rawDesc = "" +
 	"sourcePath\x12\x1f\n" +
 	"\vtarget_path\x18\x02 \x01(\tR\n" +
 	"targetPath\x12\x1b\n" +
-	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\x82\x02\n" +
-	"\rContainerSpec\x12\x1d\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\x80\x02\n" +
+	"\fInstanceSpec\x12\x1d\n" +
 	"\n" +
 	"image_name\x18\x01 \x01(\tR\timageName\x12\x1e\n" +
 	"\n" +
 	"entrypoint\x18\x02 \x03(\tR\n" +
 	"entrypoint\x12\x1c\n" +
-	"\targuments\x18\x03 \x03(\tR\targuments\x12R\n" +
-	"\x0edriver_options\x18\x04 \x03(\v2+.scheduler.ContainerSpec.DriverOptionsEntryR\rdriverOptions\x1a@\n" +
+	"\targuments\x18\x03 \x03(\tR\targuments\x12Q\n" +
+	"\x0edriver_options\x18\x04 \x03(\v2*.scheduler.InstanceSpec.DriverOptionsEntryR\rdriverOptions\x1a@\n" +
 	"\x12DriverOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x82\x01\n" +
@@ -1087,10 +1117,11 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\"e\n" +
 	"\x14UpdateStatusResponse\x12\"\n" +
 	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
-	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage\"\x86\x04\n" +
-	"\rContainerData\x12!\n" +
-	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12%\n" +
-	"\x0econtainer_name\x18\x02 \x01(\tR\rcontainerName\x12\x14\n" +
+	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage\"\x80\x04\n" +
+	"\fInstanceData\x12\x1f\n" +
+	"\vinstance_id\x18\x01 \x01(\tR\n" +
+	"instanceId\x12#\n" +
+	"\rinstance_name\x18\x02 \x01(\tR\finstanceName\x12\x14\n" +
 	"\x05image\x18\x03 \x01(\tR\x05image\x12\x1d\n" +
 	"\n" +
 	"image_name\x18\x04 \x01(\tR\timageName\x12\x18\n" +
@@ -1104,26 +1135,26 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\x06status\x18\n" +
 	" \x01(\tR\x06status\x12\x1b\n" +
 	"\texit_code\x18\v \x01(\x05R\bexitCode\x12\x10\n" +
-	"\x03pid\x18\f \x01(\x05R\x03pid\x12<\n" +
-	"\x06labels\x18\r \x03(\v2$.scheduler.ContainerData.LabelsEntryR\x06labels\x12\x14\n" +
+	"\x03pid\x18\f \x01(\x05R\x03pid\x12;\n" +
+	"\x06labels\x18\r \x03(\v2#.scheduler.InstanceData.LabelsEntryR\x06labels\x12\x14\n" +
 	"\x05ports\x18\x0e \x03(\tR\x05ports\x12\x18\n" +
 	"\avolumes\x18\x0f \x03(\tR\avolumes\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa8\x01\n" +
-	"\x17SetContainerDataRequest\x12\x17\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa4\x01\n" +
+	"\x16SetInstanceDataRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x15\n" +
-	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12?\n" +
-	"\x0econtainer_data\x18\x03 \x01(\v2\x18.scheduler.ContainerDataR\rcontainerData\x12\x1c\n" +
-	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp\"i\n" +
-	"\x18SetContainerDataResponse\x12\"\n" +
+	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12<\n" +
+	"\rinstance_data\x18\x03 \x01(\v2\x17.scheduler.InstanceDataR\finstanceData\x12\x1c\n" +
+	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp\"h\n" +
+	"\x17SetInstanceDataResponse\x12\"\n" +
 	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
-	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage2\xcd\x02\n" +
+	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage2\xca\x02\n" +
 	"\x16CentroSchedulerService\x12F\n" +
 	"\tHeartbeat\x12\x1b.scheduler.HeartbeatRequest\x1a\x1c.scheduler.HeartbeatResponse\x12=\n" +
 	"\x06GetJob\x12\x18.scheduler.GetJobRequest\x1a\x19.scheduler.GetJobResponse\x12O\n" +
-	"\fUpdateStatus\x12\x1e.scheduler.UpdateStatusRequest\x1a\x1f.scheduler.UpdateStatusResponse\x12[\n" +
-	"\x10SetContainerData\x12\".scheduler.SetContainerDataRequest\x1a#.scheduler.SetContainerDataResponseB!Z\x1fgithub.com/open-scheduler/protob\x06proto3"
+	"\fUpdateStatus\x12\x1e.scheduler.UpdateStatusRequest\x1a\x1f.scheduler.UpdateStatusResponse\x12X\n" +
+	"\x0fSetInstanceData\x12!.scheduler.SetInstanceDataRequest\x1a\".scheduler.SetInstanceDataResponseB!Z\x1fgithub.com/open-scheduler/protob\x06proto3"
 
 var (
 	file_proto_agent_proto_rawDescOnce sync.Once
@@ -1139,44 +1170,44 @@ func file_proto_agent_proto_rawDescGZIP() []byte {
 
 var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_proto_agent_proto_goTypes = []any{
-	(*HeartbeatRequest)(nil),         // 0: scheduler.HeartbeatRequest
-	(*HeartbeatResponse)(nil),        // 1: scheduler.HeartbeatResponse
-	(*GetJobRequest)(nil),            // 2: scheduler.GetJobRequest
-	(*Job)(nil),                      // 3: scheduler.Job
-	(*Resources)(nil),                // 4: scheduler.Resources
-	(*Volume)(nil),                   // 5: scheduler.Volume
-	(*ContainerSpec)(nil),            // 6: scheduler.ContainerSpec
-	(*GetJobResponse)(nil),           // 7: scheduler.GetJobResponse
-	(*UpdateStatusRequest)(nil),      // 8: scheduler.UpdateStatusRequest
-	(*UpdateStatusResponse)(nil),     // 9: scheduler.UpdateStatusResponse
-	(*ContainerData)(nil),            // 10: scheduler.ContainerData
-	(*SetContainerDataRequest)(nil),  // 11: scheduler.SetContainerDataRequest
-	(*SetContainerDataResponse)(nil), // 12: scheduler.SetContainerDataResponse
-	nil,                              // 13: scheduler.HeartbeatRequest.NodeMetadataEntry
-	nil,                              // 14: scheduler.Job.EnvironmentVariablesEntry
-	nil,                              // 15: scheduler.Job.JobMetadataEntry
-	nil,                              // 16: scheduler.ContainerSpec.DriverOptionsEntry
-	nil,                              // 17: scheduler.ContainerData.LabelsEntry
+	(*HeartbeatRequest)(nil),        // 0: scheduler.HeartbeatRequest
+	(*HeartbeatResponse)(nil),       // 1: scheduler.HeartbeatResponse
+	(*GetJobRequest)(nil),           // 2: scheduler.GetJobRequest
+	(*Job)(nil),                     // 3: scheduler.Job
+	(*Resources)(nil),               // 4: scheduler.Resources
+	(*Volume)(nil),                  // 5: scheduler.Volume
+	(*InstanceSpec)(nil),            // 6: scheduler.InstanceSpec
+	(*GetJobResponse)(nil),          // 7: scheduler.GetJobResponse
+	(*UpdateStatusRequest)(nil),     // 8: scheduler.UpdateStatusRequest
+	(*UpdateStatusResponse)(nil),    // 9: scheduler.UpdateStatusResponse
+	(*InstanceData)(nil),            // 10: scheduler.InstanceData
+	(*SetInstanceDataRequest)(nil),  // 11: scheduler.SetInstanceDataRequest
+	(*SetInstanceDataResponse)(nil), // 12: scheduler.SetInstanceDataResponse
+	nil,                             // 13: scheduler.HeartbeatRequest.NodeMetadataEntry
+	nil,                             // 14: scheduler.Job.EnvironmentVariablesEntry
+	nil,                             // 15: scheduler.Job.JobMetadataEntry
+	nil,                             // 16: scheduler.InstanceSpec.DriverOptionsEntry
+	nil,                             // 17: scheduler.InstanceData.LabelsEntry
 }
 var file_proto_agent_proto_depIdxs = []int32{
 	13, // 0: scheduler.HeartbeatRequest.node_metadata:type_name -> scheduler.HeartbeatRequest.NodeMetadataEntry
-	6,  // 1: scheduler.Job.container_config:type_name -> scheduler.ContainerSpec
+	6,  // 1: scheduler.Job.instance_config:type_name -> scheduler.InstanceSpec
 	14, // 2: scheduler.Job.environment_variables:type_name -> scheduler.Job.EnvironmentVariablesEntry
 	4,  // 3: scheduler.Job.resource_requirements:type_name -> scheduler.Resources
 	5,  // 4: scheduler.Job.volume_mounts:type_name -> scheduler.Volume
 	15, // 5: scheduler.Job.job_metadata:type_name -> scheduler.Job.JobMetadataEntry
-	16, // 6: scheduler.ContainerSpec.driver_options:type_name -> scheduler.ContainerSpec.DriverOptionsEntry
+	16, // 6: scheduler.InstanceSpec.driver_options:type_name -> scheduler.InstanceSpec.DriverOptionsEntry
 	3,  // 7: scheduler.GetJobResponse.job:type_name -> scheduler.Job
-	17, // 8: scheduler.ContainerData.labels:type_name -> scheduler.ContainerData.LabelsEntry
-	10, // 9: scheduler.SetContainerDataRequest.container_data:type_name -> scheduler.ContainerData
+	17, // 8: scheduler.InstanceData.labels:type_name -> scheduler.InstanceData.LabelsEntry
+	10, // 9: scheduler.SetInstanceDataRequest.instance_data:type_name -> scheduler.InstanceData
 	0,  // 10: scheduler.CentroSchedulerService.Heartbeat:input_type -> scheduler.HeartbeatRequest
 	2,  // 11: scheduler.CentroSchedulerService.GetJob:input_type -> scheduler.GetJobRequest
 	8,  // 12: scheduler.CentroSchedulerService.UpdateStatus:input_type -> scheduler.UpdateStatusRequest
-	11, // 13: scheduler.CentroSchedulerService.SetContainerData:input_type -> scheduler.SetContainerDataRequest
+	11, // 13: scheduler.CentroSchedulerService.SetInstanceData:input_type -> scheduler.SetInstanceDataRequest
 	1,  // 14: scheduler.CentroSchedulerService.Heartbeat:output_type -> scheduler.HeartbeatResponse
 	7,  // 15: scheduler.CentroSchedulerService.GetJob:output_type -> scheduler.GetJobResponse
 	9,  // 16: scheduler.CentroSchedulerService.UpdateStatus:output_type -> scheduler.UpdateStatusResponse
-	12, // 17: scheduler.CentroSchedulerService.SetContainerData:output_type -> scheduler.SetContainerDataResponse
+	12, // 17: scheduler.CentroSchedulerService.SetInstanceData:output_type -> scheduler.SetInstanceDataResponse
 	14, // [14:18] is the sub-list for method output_type
 	10, // [10:14] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name

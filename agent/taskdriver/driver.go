@@ -12,11 +12,11 @@ import (
 
 type Driver interface {
 	Run(ctx context.Context, job *pb.Job) error
-	StopContainer(ctx context.Context, containerID string) error
-	RestartContainer(ctx context.Context, containerID string) error
-	GetContainerStatus(ctx context.Context, containerID string) (string, error)
-	InspectContainer(ctx context.Context, containerID string) (*pb.ContainerData, error)
-	ListContainers(ctx context.Context) ([]*pb.ContainerData, error)
+	StopInstance(ctx context.Context, instanceID string) error
+	RestartInstance(ctx context.Context, instanceID string) error
+	GetInstanceStatus(ctx context.Context, instanceID string) (string, error)
+	InspectInstance(ctx context.Context, instanceID string) (*pb.InstanceData, error)
+	ListInstances(ctx context.Context) ([]*pb.InstanceData, error)
 }
 
 func NewDriver(name string) (Driver, error) {

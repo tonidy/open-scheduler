@@ -13,13 +13,13 @@ import (
 )
 
 const (
-	nodesPrefix         = "/centro/nodes/"
-	jobQueuePrefix      = "/centro/jobs/queue/"
-	failJobQueuePrefix  = "/centro/jobs/fail-queue/"
-	jobActivePrefix     = "/centro/jobs/active/"
-	jobHistoryPrefix    = "/centro/jobs/history/"
-	jobEventsPrefix     = "/centro/jobs/events/"
-	containerDataPrefix = "/centro/jobs/container_data/"
+	nodesPrefix        = "/centro/nodes/"
+	jobQueuePrefix     = "/centro/jobs/queue/"
+	failJobQueuePrefix = "/centro/jobs/fail-queue/"
+	jobActivePrefix    = "/centro/jobs/active/"
+	jobHistoryPrefix   = "/centro/jobs/history/"
+	jobEventsPrefix    = "/centro/jobs/events/"
+	instanceDataPrefix = "/centro/jobs/instance_data/"
 )
 
 type Storage struct {
@@ -124,7 +124,7 @@ func (s *Storage) EnqueueFailedJob(ctx context.Context, job *pb.Job) error {
 		return fmt.Errorf("failed to marshal job: %w", err)
 	}
 
-	key := fmt.Sprintf("%s%s-%d", failJobQueuePrefix, job.JobId, time.Now().UnixNano())
+	key := fmt.Sprintf("%s%s", failJobQueuePrefix, job.JobId)
 	_, err = s.client.Put(ctx, key, string(data))
 	if err != nil {
 		return fmt.Errorf("failed to enqueue failed job: %w", err)
@@ -133,9 +133,28 @@ func (s *Storage) EnqueueFailedJob(ctx context.Context, job *pb.Job) error {
 	return nil
 }
 
+func (s *Storage) GetQueueJobs(ctx context.Context) ([]*pb.Job, error) {
+	resp, err := s.client.Get(ctx, jobQueuePrefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get queue jobs: %w", err)
+	}
+
+	jobs := make([]*pb.Job, 0, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		var job pb.Job
+		if err := json.Unmarshal(kv.Value, &job); err != nil {
+			log.Printf("Failed to unmarshal job: %v", err)
+			continue
+		}
+		jobs = append(jobs, &job)
+	}
+	return jobs, nil
+}
+
 func (s *Storage) DeleteFailedJob(ctx context.Context, jobID string) error {
-	key := fmt.Sprintf("%s%s-%d", failJobQueuePrefix, jobID, time.Now().UnixNano())
-	_, err := s.client.Delete(ctx, key)
+	// Use prefix delete to remove the failed job entry (which has a timestamp suffix)
+	keyPrefix := fmt.Sprintf("%s%s", failJobQueuePrefix, jobID)
+	_, err := s.client.Delete(ctx, keyPrefix, clientv3.WithPrefix())
 	if err != nil {
 		return fmt.Errorf("failed to delete failed job: %w", err)
 	}
@@ -149,7 +168,7 @@ func (s *Storage) EnqueueJob(ctx context.Context, job *pb.Job) error {
 		return fmt.Errorf("failed to marshal job: %w", err)
 	}
 
-	key := fmt.Sprintf("%s%s-%d", jobQueuePrefix, job.JobId, time.Now().UnixNano())
+	key := fmt.Sprintf("%s%s", jobQueuePrefix, job.JobId)
 	_, err = s.client.Put(ctx, key, string(data))
 	if err != nil {
 		return fmt.Errorf("failed to enqueue job: %w", err)
@@ -205,29 +224,30 @@ func (s *Storage) SaveJobActive(ctx context.Context, jobID string, status *JobSt
 	return nil
 }
 
-func (s *Storage) GetListOfContainers(ctx context.Context) ([]ContainerItem, error) {
-	resp, err := s.client.Get(ctx, containerDataPrefix, clientv3.WithPrefix())
+func (s *Storage) GetListOfInstances(ctx context.Context) ([]InstanceItem, error) {
+	resp, err := s.client.Get(ctx, instanceDataPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all containers: %w", err)
+		return nil, fmt.Errorf("failed to get all instances: %w", err)
 	}
 
-	containers := make([]ContainerItem, 0, len(resp.Kvs))
+	instances := make([]InstanceItem, 0, len(resp.Kvs))
 	for _, kv := range resp.Kvs {
-		var rawContainer pb.ContainerData
-		if err := json.Unmarshal(kv.Value, &rawContainer); err != nil {
-			log.Printf("Failed to unmarshal container: %v", err)
+		var rawInstance pb.InstanceData
+		if err := json.Unmarshal(kv.Value, &rawInstance); err != nil {
+			log.Printf("Failed to unmarshal instance: %v", err)
 			continue
 		}
-		
-		cleanContainer := ContainerItem{
-			ContainerName: rawContainer.ContainerName,
-			Status:      rawContainer.Status,
-			Created:     rawContainer.Created,
+
+		cleanInstance := InstanceItem{
+			JobID:        strings.TrimPrefix(string(kv.Key), instanceDataPrefix),
+			InstanceName: rawInstance.InstanceName,
+			Status:       rawInstance.Status,
+			Created:      rawInstance.Created,
 		}
-		containers = append(containers, cleanContainer)
+		instances = append(instances, cleanInstance)
 	}
 
-	return containers, nil
+	return instances, nil
 }
 func (s *Storage) GetJobActive(ctx context.Context, jobID string) (*JobStatus, error) {
 	key := jobActivePrefix + jobID
@@ -413,35 +433,74 @@ func (s *Storage) GetAllFailedJobs(ctx context.Context) (map[string]*pb.Job, err
 	return jobs, nil
 }
 
-func (s *Storage) SaveContainerData(ctx context.Context, jobID string, containerData *pb.ContainerData) error {
-	data, err := json.Marshal(containerData)
+func (s *Storage) SaveInstanceData(ctx context.Context, jobID string, instanceData *pb.InstanceData) error {
+	data, err := json.Marshal(instanceData)
 	if err != nil {
-		return fmt.Errorf("failed to marshal container data: %w", err)
+		return fmt.Errorf("failed to marshal instance data: %w", err)
 	}
 
-	key := containerDataPrefix + jobID
+	key := instanceDataPrefix + jobID
 	_, err = s.client.Put(ctx, key, string(data))
 	if err != nil {
-		return fmt.Errorf("failed to save container data: %w", err)
+		return fmt.Errorf("failed to save instance data: %w", err)
 	}
 	return nil
 }
 
-func (s *Storage) GetContainerData(ctx context.Context, jobID string) (*pb.ContainerData, error) {
-	key := containerDataPrefix + jobID
+func (s *Storage) GetInstanceData(ctx context.Context, jobID string) (*pb.InstanceData, error) {
+	key := instanceDataPrefix + jobID
 	resp, err := s.client.Get(ctx, key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get container data: %w", err)
+		return nil, fmt.Errorf("failed to get instance data: %w", err)
 	}
 
 	if len(resp.Kvs) == 0 {
 		return nil, nil
 	}
 
-	var containerData pb.ContainerData
-	if err := json.Unmarshal(resp.Kvs[0].Value, &containerData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal container data: %w", err)
+	var instanceData pb.InstanceData
+	if err := json.Unmarshal(resp.Kvs[0].Value, &instanceData); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal instance data: %w", err)
 	}
 
-	return &containerData, nil
+	return &instanceData, nil
+}
+
+
+func (s *Storage) GetQueueJob(ctx context.Context, jobID string) (*pb.Job, error) {
+	key := jobQueuePrefix + jobID
+	resp, err := s.client.Get(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get queue job: %w", err)
+	}
+
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+
+	var job pb.Job
+	if err := json.Unmarshal(resp.Kvs[0].Value, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	}
+
+	return &job, nil
+}
+
+func (s *Storage) GetFailedJob(ctx context.Context, jobID string) (*pb.Job, error) {
+	key := failJobQueuePrefix + jobID
+	resp, err := s.client.Get(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get failed job: %w", err)
+	}
+
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+
+	var job pb.Job
+	if err := json.Unmarshal(resp.Kvs[0].Value, &job); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	}
+
+	return &job, nil
 }

@@ -32,34 +32,34 @@ func (s *CleanupService) Execute(ctx context.Context, nodeID string, token strin
 		return nil
 	}
 
-	// List all containers
-	containers, err := s.driver.ListContainers(ctx)
+	// List all instances
+	instances, err := s.driver.ListInstances(ctx)
 	if err != nil {
-		log.Printf("[CleanupService] Failed to list containers: %v", err)
-		return fmt.Errorf("failed to list containers: %w", err)
+		log.Printf("[CleanupService] Failed to list instances: %v", err)
+		return fmt.Errorf("failed to list instances: %w", err)
 	}
 
-	log.Printf("[CleanupService] Found %d containers", len(containers))
+	log.Printf("[CleanupService] Found %d instances", len(instances))
 
 	stoppedCount := 0
 	cleanedCount := 0
 
-	// Filter for stopped containers and stop them
-	for _, container := range containers {
-		if container.Status == "stopped" ||
-			container.Status == "exited" {
+	// Filter for stopped instances and stop them
+	for _, instance := range instances {
+		if instance.Status == "stopped" ||
+			instance.Status == "exited" {
 			stoppedCount++
-			log.Printf("[CleanupService] Found stopped container: %s (Status: %s)", container.ContainerId, container.Status)
+			log.Printf("[CleanupService] Found stopped instance: %s (Status: %s)", instance.InstanceId, instance.Status)
 
-			// Stop the container (this will also remove it based on the StopContainer implementation)
-			err := s.driver.StopContainer(ctx, container.ContainerId)
+			// Stop the instance (this will also remove it based on the StopInstance implementation)
+			err := s.driver.StopInstance(ctx, instance.InstanceId)
 			if err != nil {
-				log.Printf("[CleanupService] Failed to stop container %s: %v", container.ContainerId, err)
+				log.Printf("[CleanupService] Failed to stop instance %s: %v", instance.InstanceId, err)
 				continue
 			}
 
 			cleanedCount++
-			log.Printf("[CleanupService] Successfully cleaned up container: %s", container.ContainerId)
+			log.Printf("[CleanupService] Successfully cleaned up instance: %s", instance.InstanceId)
 		}
 	}
 

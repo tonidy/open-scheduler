@@ -25,7 +25,7 @@ message GetJobRequest {
   string node_id = 1;
 }
 
-// Job specification - simplified model where each job runs exactly one container
+// Job specification - simplified model where each job runs exactly one instance (container or VM)
 message Job {
   string job_id = 1;
   string job_name = 2;
@@ -35,12 +35,17 @@ message Job {
   // Job execution configuration (merged from Task)
   string driver_type = 5;        // Driver type: "podman", "incus", "exec"
   string command = 6;             // Command or script to execute
-  ContainerSpec container_config = 7;
+  InstanceSpec instance_config = 7;  // Instance configuration (for containers, VMs, etc.)
   map<string, string> environment_variables = 8;
   Resources resource_requirements = 9;
   repeated Volume volume_mounts = 10;
   string workload_type = 11;       // Workload type: "container", "vm", "process"
   map<string, string> job_metadata = 12; // Job-level metadata
+  
+  // Job retry and failure tracking
+  int32 retry_count = 13;          // Number of times this job has been retried
+  int32 max_retries = 14;          // Maximum number of retries allowed (0 = no limit)
+  int64 last_retry_time = 15;      // Unix timestamp of last retry attempt
 }
 
 // Resource requirements and limits for job execution
@@ -51,17 +56,17 @@ message Resources {
   float cpu_reserved_cores = 4;   // Reserved/guaranteed CPU in cores
 }
 
-// Volume mount specification for binding host paths to container/VM paths
+// Volume mount specification for binding host paths to instance/VM paths
 message Volume {
   string source_path = 1;      // Path on the host system
-  string target_path = 2;      // Path inside the container/VM
+  string target_path = 2;      // Path inside the instance/VM
   bool read_only = 3;          // Whether the mount is read-only
 }
 
-// Container/image specification for containerized workloads
-message ContainerSpec {
-  string image_name = 1;             // Container image (e.g., "nginx:latest")
-  repeated string entrypoint = 2;    // Entrypoint command to run in the container
+// Instance specification for containerized or VM workloads
+message InstanceSpec {
+  string image_name = 1;             // Image name (e.g., "nginx:latest" for containers, VM image for VMs)
+  repeated string entrypoint = 2;    // Entrypoint command to run in the instance
   repeated string arguments = 3;     // Arguments for the entrypoint command
   map<string, string> driver_options = 4; // Driver-specific configuration options
 }
@@ -86,33 +91,33 @@ message UpdateStatusResponse {
   string response_message = 2;
 }
 
-// Container inspection data sent from Agent to Centro after container is running
-message ContainerData {
-  string container_id = 1;         // Container ID
-  string container_name = 2;       // Container name
+// Instance inspection data sent from Agent to Centro after instance is running
+message InstanceData {
+  string instance_id = 1;          // Instance ID
+  string instance_name = 2;        // Instance name
   string image = 3;                // Full image identifier
   string image_name = 4;           // Image name (e.g., "nginx:latest")
-  repeated string command = 5;     // Command executed in container
+  repeated string command = 5;     // Command executed in instance
   repeated string args = 6;        // Arguments passed to command
   string created = 7;              // Creation timestamp
-  string started_at = 8;           // Container start timestamp
-  string finished_at = 9;          // Container finish timestamp (if stopped)
-  string status = 10;              // Container status: "running", "stopped", "exited", "failed"
+  string started_at = 8;           // Instance start timestamp
+  string finished_at = 9;          // Instance finish timestamp (if stopped)
+  string status = 10;              // Instance status: "running", "stopped", "exited", "failed"
   int32 exit_code = 11;            // Exit code (if stopped)
   int32 pid = 12;                  // Process ID
-  map<string, string> labels = 13; // Container labels
+  map<string, string> labels = 13; // Instance labels
   repeated string ports = 14;      // Exposed ports
   repeated string volumes = 15;    // Mounted volumes
 }
 
-message SetContainerDataRequest {
-  string node_id = 1;              // Node ID where container is running
-  string job_id = 2;               // Job ID associated with the container
-  ContainerData container_data = 3; // Container inspection data
+message SetInstanceDataRequest {
+  string node_id = 1;              // Node ID where instance is running
+  string job_id = 2;               // Job ID associated with the instance
+  InstanceData instance_data = 3;  // Instance inspection data
   int64 timestamp = 4;             // Timestamp when data was collected
 }
 
-message SetContainerDataResponse {
+message SetInstanceDataResponse {
   bool acknowledged = 1;
   string response_message = 2;
 }
@@ -128,7 +133,7 @@ service CentroSchedulerService {
   // Agent sends job execution status updates to Centro
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse);
 
-  // Agent sends container inspection data after container is running
-  rpc SetContainerData(SetContainerDataRequest) returns (SetContainerDataResponse);
+  // Agent sends instance inspection data after instance is running
+  rpc SetInstanceData(SetInstanceDataRequest) returns (SetInstanceDataResponse);
 }
 

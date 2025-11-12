@@ -34,33 +34,33 @@ func (s *UpdateStatusService) Execute(ctx context.Context, nodeID string, token 
 	log.Printf("[UpdateStatusService] Updating status for node: %s", s.nodeID)
 
 	if s.driver == nil {
-		log.Printf("[UpdateStatusService] No driver configured, skipping container status updates")
+		log.Printf("[UpdateStatusService] No driver configured, skipping instance status updates")
 		return nil
 	}
 
-	containers, err := s.driver.ListContainers(ctx)
+	instances, err := s.driver.ListInstances(ctx)
 	if err != nil {
-		log.Printf("[UpdateStatusService] Failed to list containers: %v", err)
-		return fmt.Errorf("failed to list containers: %w", err)
+		log.Printf("[UpdateStatusService] Failed to list instances: %v", err)
+		return fmt.Errorf("failed to list instances: %w", err)
 	}
 
-	log.Printf("[UpdateStatusService] Found %d containers to update", len(containers))
+	log.Printf("[UpdateStatusService] Found %d instances to update", len(instances))
 
-	for _, container := range containers {
-		jobID, hasJobID := container.Labels["open-scheduler.job-id"]
+	for _, instance := range instances {
+		jobID, hasJobID := instance.Labels["open-scheduler.job-id"]
 		if !hasJobID || jobID == "" {
-			log.Printf("[UpdateStatusService] Container %s has no job-id label, skipping", container.ContainerId)
+			log.Printf("[UpdateStatusService] Instance %s has no job-id label, skipping", instance.InstanceId)
 			continue
 		}
 
-		jobStatus := mapContainerStatusToJobStatus(container.Status)
-		statusMessage := fmt.Sprintf("Container %s is %s", container.ContainerName, container.Status)
+		jobStatus := mapInstanceStatusToJobStatus(instance.Status)
+		statusMessage := fmt.Sprintf("Instance %s is %s", instance.InstanceName, instance.Status)
 
-		if container.Status == "exited" || container.Status == "failed" {
-			statusMessage = fmt.Sprintf("%s (exit code: %d)", statusMessage, container.ExitCode)
+		if instance.Status == "exited" || instance.Status == "failed" {
+			statusMessage = fmt.Sprintf("%s (exit code: %d)", statusMessage, instance.ExitCode)
 		}
 
-		log.Printf("[UpdateStatusService] Updating job %s: status=%s, container=%s", jobID, jobStatus, container.ContainerId)
+		log.Printf("[UpdateStatusService] Updating job %s: status=%s, instance=%s", jobID, jobStatus, instance.InstanceId)
 
 		resp, err := s.grpcClient.UpdateStatus(
 			ctx,
@@ -88,8 +88,8 @@ func (s *UpdateStatusService) Execute(ctx context.Context, nodeID string, token 
 	return nil
 }
 
-func mapContainerStatusToJobStatus(containerStatus string) string {
-	switch containerStatus {
+func mapInstanceStatusToJobStatus(instanceStatus string) string {
+	switch instanceStatus {
 	case "running":
 		return "running"
 	case "exited":

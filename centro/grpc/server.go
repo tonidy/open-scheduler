@@ -180,9 +180,13 @@ func (s *CentroServer) handleJobRejection(ctx context.Context, job *pb.Job, reje
 			log.Printf("[Centro] Failed to save 'no matching nodes' event: %v", err)
 		}
 
-		log.Printf("[Centro] Job %s has no matching nodes. Rejection reasons saved to events.", job.JobId)
+		log.Printf("[Centro] Job %s (retry %d/%d) has no matching nodes. Moving to failed queue.",
+			job.JobId, job.RetryCount, job.MaxRetries)
+
 		if err := s.storage.EnqueueFailedJob(ctx, job); err != nil {
-			log.Printf("[Centro] Failed to enqueue failed job: %v", err)
+			log.Printf("[Centro] Failed to enqueue failed job %s: %v", job.JobId, err)
+		} else {
+			log.Printf("[Centro] Job %s moved to failed queue for later retry", job.JobId)
 		}
 	} else {
 
@@ -434,44 +438,44 @@ func (s *CentroServer) UpdateStatus(ctx context.Context, req *pb.UpdateStatusReq
 	}, nil
 }
 
-func (s *CentroServer) SetContainerData(ctx context.Context, req *pb.SetContainerDataRequest) (*pb.SetContainerDataResponse, error) {
+func (s *CentroServer) SetInstanceData(ctx context.Context, req *pb.SetInstanceDataRequest) (*pb.SetInstanceDataResponse, error) {
 	if req.NodeId == "" {
-		return &pb.SetContainerDataResponse{
+		return &pb.SetInstanceDataResponse{
 			Acknowledged:    false,
 			ResponseMessage: "node_id is required",
 		}, nil
 	}
 
 	if req.JobId == "" {
-		return &pb.SetContainerDataResponse{
+		return &pb.SetInstanceDataResponse{
 			Acknowledged:    false,
 			ResponseMessage: "job_id is required",
 		}, nil
 	}
 
-	if req.ContainerData == nil {
-		return &pb.SetContainerDataResponse{
+	if req.InstanceData == nil {
+		return &pb.SetInstanceDataResponse{
 			Acknowledged:    false,
-			ResponseMessage: "container_data is required",
+			ResponseMessage: "instance_data is required",
 		}, nil
 	}
 
-	// Log container data for monitoring
-	log.Printf("[Centro] Received container data for job %s from node %s: container=%s, status=%s, pid=%d",
-		req.JobId, req.NodeId, req.ContainerData.ContainerId, req.ContainerData.Status, req.ContainerData.Pid)
+	// Log instance data for monitoring
+	log.Printf("[Centro] Received instance data for job %s from node %s: instance=%s, status=%s, pid=%d",
+		req.JobId, req.NodeId, req.InstanceData.InstanceId, req.InstanceData.Status, req.InstanceData.Pid)
 
-	// Save container data using the dedicated container_data key
-	if err := s.storage.SaveContainerData(ctx, req.JobId, req.ContainerData); err != nil {
-		log.Printf("[Centro] Failed to save container data: %v", err)
-		return &pb.SetContainerDataResponse{
+	// Save instance data using the dedicated instance_data key
+	if err := s.storage.SaveInstanceData(ctx, req.JobId, req.InstanceData); err != nil {
+		log.Printf("[Centro] Failed to save instance data: %v", err)
+		return &pb.SetInstanceDataResponse{
 			Acknowledged:    false,
-			ResponseMessage: fmt.Sprintf("Failed to save container data: %v", err),
+			ResponseMessage: fmt.Sprintf("Failed to save instance data: %v", err),
 		}, nil
 	}
 
-	return &pb.SetContainerDataResponse{
+	return &pb.SetInstanceDataResponse{
 		Acknowledged:    true,
-		ResponseMessage: "Container data received successfully",
+		ResponseMessage: "Instance data received successfully",
 	}, nil
 }
 
