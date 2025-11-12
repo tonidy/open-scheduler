@@ -40,10 +40,10 @@ func (q *Queue) moveFailedJobsToQueue(ctx context.Context) {
 		return
 	}
 
-	for _, job := range failedJobs {				
+	for _, job := range failedJobs {
 
 		// Check if job has exceeded max retries (if max_retries > 0)
-		if job.MaxRetries > 0 && job.RetryCount > job.MaxRetries {
+		if job.MaxRetries > 0 && job.RetryCount >= job.MaxRetries {
 			log.Printf("[Scheduler] Job %s exceeded max retries (%d/%d), moving to history",
 				job.JobId, job.RetryCount, job.MaxRetries)
 
@@ -72,11 +72,10 @@ func (q *Queue) moveFailedJobsToQueue(ctx context.Context) {
 			continue
 		}
 
-		
 		log.Printf("[Scheduler] Retrying failed job %s (attempt %d/%d)",
 			job.JobId, job.RetryCount+1, job.MaxRetries)
-		job.RetryCount = job.RetryCount + 1		
-		job.LastRetryTime = time.Now().Unix()		
+		job.RetryCount = job.RetryCount + 1
+		job.LastRetryTime = time.Now().Unix()
 		if err := q.storage.EnqueueJob(ctx, job); err != nil {
 			log.Printf("[Scheduler] Failed to enqueue job: %v", err)
 			continue
