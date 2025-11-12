@@ -99,6 +99,10 @@ npm run build
 The production files will be in the `panel/dist` directory.
 
 For more details, see the [Panel README](panel/README.md).
+### Screenshot panel
+<img width="1428" height="387" alt="image" src="https://github.com/user-attachments/assets/6b574b92-2e83-454f-8764-2fe752ef69a7" />
+<img width="1428" height="387" alt="image" src="https://github.com/user-attachments/assets/dd06538a-6079-4a41-b2cb-dfeaf3361612" />
+
 
 ## API Documentation
 
