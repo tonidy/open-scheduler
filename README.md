@@ -7,6 +7,7 @@ Follow the steps below to install and run the Open Scheduler prototype:
 - **Go** (version 1.20 or higher)
 - **Etcd** (see [README/ETCD_SETUP.md](README/ETCD_SETUP.md) for details)
 - **Docker** or **Podman** (if running agent workloads as containers)
+- **Node.js** (version 18 or higher, for running the web panel)
 - (Optional) `protoc` for regenerating protobuf definitions
 
 ## Clone the Repository
@@ -53,6 +54,51 @@ On each node (worker), run:
 ```sh
 ./agent/agent --node-id <node-identifier> --etcd-endpoints <etcd-host:port>
 ```
+
+## Running the Panel
+
+The web-based control panel provides a UI for managing jobs, nodes, and instances.
+
+### Prerequisites
+
+- **Node.js** (version 18 or higher)
+- **npm** (comes with Node.js)
+
+### Installation and Setup
+
+1. Install dependencies:
+
+```sh
+cd panel
+npm install
+```
+
+2. Start the development server:
+
+```sh
+npm run dev
+```
+
+The panel will be available at `http://localhost:3000`
+
+> **Note:** The panel requires the Centro server to be running on port 8080. The development server automatically proxies API requests to the backend.
+
+### Default Login Credentials
+
+- **Username:** admin
+- **Password:** admin123
+
+### Building for Production
+
+To build the panel for production:
+
+```sh
+npm run build
+```
+
+The production files will be in the `panel/dist` directory.
+
+For more details, see the [Panel README](panel/README.md).
 
 ## API Documentation
 
