@@ -45,7 +45,8 @@ func (s *APIServer) setupRoutes() {
 	protected.HandleFunc("/jobs/{id}", s.handleGetJob).Methods("GET")
 	protected.HandleFunc("/jobs/{id}/status", s.handleGetJobStatus).Methods("GET")
 	protected.HandleFunc("/jobs/{id}/events", s.handleGetJobEvents).Methods("GET")
-	protected.HandleFunc("/jobs/{id}/container", s.handleGetContainerData).Methods("GET")
+	protected.HandleFunc("/containers", s.handleListContainers).Methods("GET")
+	protected.HandleFunc("/containers/{id}", s.handleGetContainerData).Methods("GET")
 
 	protected.HandleFunc("/nodes", s.handleListNodes).Methods("GET")
 	protected.HandleFunc("/nodes/{id}", s.handleGetNode).Methods("GET")
@@ -192,22 +193,17 @@ func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 type SubmitJobRequest struct {
-	Name        string            `json:"name" example:"web-server-job"`
-	Type        string            `json:"type" example:"service"`
-	Datacenters string            `json:"datacenters" example:"dc1"`
-	Tasks       []TaskRequest     `json:"tasks"`
+	JobId       string            `json:"job_id" example:"123"`
+	JobName     string            `json:"job_name" example:"web-server-job"`
+	JobType     string            `json:"job_type" example:"service"`
+	SelectedClusters []string          `json:"selected_clusters" example:"dc1,dc2"`
 	Meta        map[string]string `json:"meta"`
-}
-
-type TaskRequest struct {
-	Name            string                `json:"name" example:"nginx-task"`
-	Driver          string                `json:"driver" example:"podman"`
-	Kind            string                `json:"kind,omitempty" example:"container"`
-	Command         string                `json:"command,omitempty" example:"echo 'Hello World'"`
+	Driver      string            `json:"driver" example:"podman"`
+	WorkloadType string            `json:"workload_type" example:"container"`
+	Command      string            `json:"command" example:"echo 'Hello World'"`
 	ContainerConfig *ContainerSpecRequest `json:"container_config,omitempty"`
-	Env             map[string]string     `json:"env,omitempty"`
-	Resources       *ResourcesRequest     `json:"resources,omitempty"`
-	Volumes         []VolumeRequest       `json:"volumes,omitempty"`
+	Resources *ResourcesRequest `json:"resources,omitempty"`
+	Volumes []VolumeRequest `json:"volumes,omitempty"`
 }
 
 type ResourcesRequest struct {
@@ -249,82 +245,49 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" {
+	if req.JobName == "" {
 		respondWithError(w, http.StatusBadRequest, "Job name is required")
 		return
 	}
-
-	if len(req.Tasks) == 0 {
-		respondWithError(w, http.StatusBadRequest, "At least one task is required")
-		return
-	}
-
 	jobID := uuid.New().String()
-
-	tasks := make([]*pb.Task, 0, len(req.Tasks))
-	for _, t := range req.Tasks {
-		task := &pb.Task{
-			TaskName:             t.Name,
-			DriverType:           t.Driver,
-			WorkloadType:         t.Kind,
-			Command:              t.Command,
-			EnvironmentVariables: t.Env,
-		}
-
-		// Add container config if specified
-		if t.ContainerConfig != nil {
-			task.ContainerConfig = &pb.ContainerSpec{
-				ImageName:     t.ContainerConfig.Image,
-				Entrypoint:    t.ContainerConfig.Command,
-				Arguments:     t.ContainerConfig.Args,
-				DriverOptions: t.ContainerConfig.Options,
-			}
-		}
-
-		// Add resources if specified
-		if t.Resources != nil {
-			task.ResourceRequirements = &pb.Resources{
-				MemoryLimitMb:    t.Resources.MemoryMB,
-				MemoryReservedMb: t.Resources.MemoryReserveMB,
-				CpuLimitCores:    t.Resources.CPU,
-				CpuReservedCores: t.Resources.CPUReserve,
-			}
-		}
-
-		// Add volumes if specified
-		if len(t.Volumes) > 0 {
-			task.VolumeMounts = make([]*pb.Volume, 0, len(t.Volumes))
-			for _, v := range t.Volumes {
-				task.VolumeMounts = append(task.VolumeMounts, &pb.Volume{
-					SourcePath: v.HostPath,
-					TargetPath: v.ContainerPath,
-					ReadOnly:   v.ReadOnly,
-				})
-			}
-		}
-
-		tasks = append(tasks, task)
-	}
-
-	// Split comma-separated clusters string into array
-	var selectedClusters []string
-	if req.Datacenters != "" {
-		// Support comma-separated list
-		for _, cluster := range strings.Split(req.Datacenters, ",") {
-			cluster = strings.TrimSpace(cluster)
-			if cluster != "" {
-				selectedClusters = append(selectedClusters, cluster)
-			}
-		}
-	}
 
 	job := &pb.Job{
 		JobId:            jobID,
-		JobName:          req.Name,
-		JobType:          req.Type,
-		SelectedClusters: selectedClusters,
-		Tasks:            tasks,
-		JobMetadata:      req.Meta,
+		JobName:          req.JobName,
+		JobType:          req.JobType,
+		SelectedClusters: req.SelectedClusters,
+		DriverType:       req.Driver,
+		WorkloadType:     req.WorkloadType,
+		Command:          req.Command,		
+	}
+	if req.ContainerConfig != nil {
+		job.ContainerConfig = &pb.ContainerSpec{
+			ImageName:     req.ContainerConfig.Image,
+			Entrypoint:    req.ContainerConfig.Command,
+			Arguments:     req.ContainerConfig.Args,
+			DriverOptions: req.ContainerConfig.Options,
+		}
+	}
+	if req.Resources != nil {
+		job.ResourceRequirements = &pb.Resources{
+			MemoryLimitMb:    req.Resources.MemoryMB,
+			MemoryReservedMb: req.Resources.MemoryReserveMB,
+			CpuLimitCores:    req.Resources.CPU,
+			CpuReservedCores: req.Resources.CPUReserve,
+		}
+	}
+	if len(req.Volumes) > 0 {
+		job.VolumeMounts = make([]*pb.Volume, 0, len(req.Volumes))
+		for _, v := range req.Volumes {
+			job.VolumeMounts = append(job.VolumeMounts, &pb.Volume{
+				SourcePath: v.HostPath,
+				TargetPath: v.ContainerPath,
+				ReadOnly:   v.ReadOnly,
+			})
+		}
+	}
+	if req.Meta != nil {
+		job.JobMetadata = req.Meta
 	}
 
 	ctx := context.Background()
@@ -334,7 +297,7 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[Centro REST] Job submitted: %s (%s)", jobID, req.Name)
+	log.Printf("[Centro REST] Job submitted: %s (%s)", jobID, req.JobName)
 
 	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
 		"job_id":  jobID,
@@ -451,6 +414,30 @@ func (s *APIServer) handleGetJobStatus(w http.ResponseWriter, r *http.Request) {
 	respondWithError(w, http.StatusNotFound, "Job not found")
 }
 
+// handleListContainers godoc
+// @Summary List all containers
+// @Description Get a list of all containers in the cluster
+// @Tags Containers
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]string
+// @Router /containers [get]
+func (s *APIServer) handleListContainers(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	containers, err := s.storage.GetListOfContainers(ctx)
+	if err != nil {
+		log.Printf("[Centro REST] Failed to get containers: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve containers")
+		return
+	}
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"containers": containers,
+		"count": len(containers),
+	})
+}
+
 // handleGetJobEvents godoc
 // @Summary Get job events
 // @Description Retrieve events for a specific job
@@ -528,14 +515,14 @@ func extractEventMessage(event string) string {
 // handleGetContainerData godoc
 // @Summary Get container data for a job
 // @Description Retrieves the container data associated with a specific job
-// @Tags Jobs
+// @Tags Containers
 // @Security BearerAuth
 // @Produce json
-// @Param id path string true "Job ID"
+// @Param id path string true "Container ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /jobs/{id}/container [get]
+// @Router /containers/{id} [get]
 func (s *APIServer) handleGetContainerData(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	jobID := vars["id"]
@@ -553,9 +540,17 @@ func (s *APIServer) handleGetContainerData(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	events, err := s.storage.GetJobEvents(ctx, jobID)
+	if err != nil {
+		log.Printf("[Centro REST] Failed to get job events: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve events")
+		return
+	}
+
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"job_id":         jobID,
 		"container_data": containerData,
+		"events": events,
 	})
 }
 

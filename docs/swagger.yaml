@@ -57,26 +57,6 @@ definitions:
     type: object
   rest.SubmitJobRequest:
     properties:
-      datacenters:
-        example: dc1
-        type: string
-      meta:
-        additionalProperties:
-          type: string
-        type: object
-      name:
-        example: web-server-job
-        type: string
-      tasks:
-        items:
-          $ref: '#/definitions/rest.TaskRequest'
-        type: array
-      type:
-        example: service
-        type: string
-    type: object
-  rest.TaskRequest:
-    properties:
       command:
         example: echo 'Hello World'
         type: string
@@ -85,22 +65,35 @@ definitions:
       driver:
         example: podman
         type: string
-      env:
+      job_id:
+        example: "123"
+        type: string
+      job_name:
+        example: web-server-job
+        type: string
+      job_type:
+        example: service
+        type: string
+      meta:
         additionalProperties:
           type: string
         type: object
-      kind:
-        example: container
-        type: string
-      name:
-        example: nginx-task
-        type: string
       resources:
         $ref: '#/definitions/rest.ResourcesRequest'
+      selected_clusters:
+        example:
+        - dc1
+        - dc2
+        items:
+          type: string
+        type: array
       volumes:
         items:
           $ref: '#/definitions/rest.VolumeRequest'
         type: array
+      workload_type:
+        example: container
+        type: string
     type: object
   rest.VolumeRequest:
     properties:
@@ -162,6 +155,64 @@ paths:
       summary: Login to get JWT token
       tags:
       - Authentication
+  /containers:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all containers in the cluster
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all containers
+      tags:
+      - Containers
+  /containers/{id}:
+    get:
+      description: Retrieves the container data associated with a specific job
+      parameters:
+      - description: Container ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get container data for a job
+      tags:
+      - Containers
   /jobs:
     get:
       consumes:
@@ -255,40 +306,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Get job details
-      tags:
-      - Jobs
-  /jobs/{id}/container:
-    get:
-      description: Retrieves the container data associated with a specific job
-      parameters:
-      - description: Job ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Get container data for a job
       tags:
       - Jobs
   /jobs/{id}/events:

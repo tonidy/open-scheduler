@@ -10,6 +10,7 @@ import (
 
 	"github.com/open-scheduler/agent/commands"
 	agentgrpc "github.com/open-scheduler/agent/grpc"
+	cleanupservice "github.com/open-scheduler/agent/service/cleanup"
 	containerservice "github.com/open-scheduler/agent/service/container"
 	statusservice "github.com/open-scheduler/agent/service/status"
 	"github.com/open-scheduler/agent/taskdriver"
@@ -100,10 +101,16 @@ func main() {
 		log.Fatalf("Failed to create SetContainerDataService: %v", err)
 	}
 
+	cleanupService, err := cleanupservice.NewCleanupService(driver, nodeID)
+	if err != nil {
+		log.Fatalf("Failed to create CleanupService: %v", err)
+	}
+
 	executor.Register(commands.NewHeartbeatCommand(grpcClient))
 	executor.Register(commands.NewGetJobCommand(grpcClient))
 	executor.Register(commands.NewUpdateStatusCommand(statusService))
 	executor.Register(commands.NewSetContainerDataCommand(containerService))
+	executor.Register(commands.NewCleanUpContainersCommand(cleanupService))
 
 	executor.StartScheduler(ctx)
 

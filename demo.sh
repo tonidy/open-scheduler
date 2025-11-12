@@ -1,8 +1,11 @@
 #!/bin/bash
-pkill etcd
+pkill etcd > /dev/null 2>&1
+killall centro_server > /dev/null 2>&1
+killall agent_client > /dev/null 2>&1
 nohup etcd --data-dir=default.etcd --listen-client-urls=http://localhost:2379 --advertise-client-urls=http://localhost:2379 > etcd.log 2>&1 &
 podman stop $(podman ps -aq)
 podman rm $(podman ps -aq)
+make swagger
 set -e
 # export XDG_RUNTIME_DIR="unix:///run/user/501"
 echo "==> Cleaning etcd job and node data..."

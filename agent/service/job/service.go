@@ -43,35 +43,27 @@ func (s *GetJobService) Execute(ctx context.Context, nodeID string, token string
 }
 
 func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID string, token string) error {
-	// Job details already logged in Execute()
-
-	for _, task := range job.Tasks {
-		driver, err := taskdriver.NewDriver(task.DriverType)
-		if err != nil {
-			// Report failure to Centro
-			s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Failed to create driver: %v", err))
-			return fmt.Errorf("failed to create driver for task %s: %w", task.TaskName, err)
-		}
-
-		log.Printf("[GetJobService] Running task: %s with driver: %s", task.TaskName, task.DriverType)
-
-		s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running task: %s", task.TaskName))
-
-		taskCtx := context.WithValue(ctx, "jobId", job.JobId)
-
-		err = driver.Run(taskCtx, task)
-		if err != nil {
-			// Report failure to Centro
-			s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Task %s failed: %v", task.TaskName, err))
-			return fmt.Errorf("failed to run task %s: %w", task.TaskName, err)
-		}
-		log.Printf("[GetJobService] Task %s completed successfully", task.TaskName)
+	// Create driver for the job
+	driver, err := taskdriver.NewDriver(job.DriverType)
+	if err != nil {
+		// Report failure to Centro
+		s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Failed to create driver: %v", err))
+		return fmt.Errorf("failed to create driver for job %s: %w", job.JobName, err)
 	}
 
-	// Report completion to Centro
-	if err := s.updateJobStatus(ctx, job.JobId, nodeID, token, "completed", "All tasks completed successfully"); err != nil {
-		log.Printf("[GetJobService] Warning: Failed to update job status: %v", err)
+	log.Printf("[GetJobService] Running job: %s with driver: %s", job.JobName, job.DriverType)
+
+	s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running job: %s", job.JobName))
+
+	// Run the job directly (each job is now a single container)
+	err = driver.Run(ctx, job)
+	if err != nil {
+		// Report failure to Centro
+		s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", fmt.Sprintf("Job failed: %v", err))
+		return fmt.Errorf("failed to run job %s: %w", job.JobName, err)
 	}
+
+	log.Printf("[GetJobService] Job %s started successfully", job.JobName)
 
 	return nil
 }

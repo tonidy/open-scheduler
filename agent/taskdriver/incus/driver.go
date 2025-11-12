@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/open-scheduler/agent/taskdriver/model"
 	pb "github.com/open-scheduler/proto"
 )
 
@@ -18,7 +17,7 @@ func NewIncusDriver() *IncusDriver {
 	}
 }
 
-func (d *IncusDriver) Run(ctx context.Context, task *pb.Task) error {
+func (d *IncusDriver) Run(ctx context.Context, job *pb.Job) error {
 	// TODO: Implement Incus driver
 	return nil
 }
@@ -29,16 +28,22 @@ func (d *IncusDriver) StopContainer(ctx context.Context, containerID string) err
 	return fmt.Errorf("StopContainer not implemented for Incus driver")
 }
 
+// RestartContainer restarts a running container (to be implemented)
+func (d *IncusDriver) RestartContainer(ctx context.Context, containerID string) error {
+	// TODO: Implement Incus container restart
+	return fmt.Errorf("RestartContainer not implemented for Incus driver")
+}
+
 // GetContainerStatus retrieves the current status of a container (to be implemented)
 func (d *IncusDriver) GetContainerStatus(ctx context.Context, containerID string) (string, error) {
 	// TODO: Implement Incus status retrieval
 	return "", fmt.Errorf("GetContainerStatus not implemented for Incus driver")
 }
 
-func (d *IncusDriver) InspectContainer(ctx context.Context, containerID string) (model.ContainerInspect, error) {
-	return model.ContainerInspect{}, fmt.Errorf("InspectContainer not implemented for Incus driver")
+func (d *IncusDriver) InspectContainer(ctx context.Context, containerID string) (*pb.ContainerData, error) {
+	return nil, fmt.Errorf("InspectContainer not implemented for Incus driver")
 }
 
-func (d *IncusDriver) ListContainers(ctx context.Context) ([]model.ContainerInspect, error) {
-	return []model.ContainerInspect{}, nil
+func (d *IncusDriver) ListContainers(ctx context.Context) ([]*pb.ContainerData, error) {
+	return []*pb.ContainerData{}, nil
 }

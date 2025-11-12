@@ -37,7 +37,7 @@ echo "4. List all jobs..."
 curl -s -H "Authorization: Bearer $TOKEN" ${API_URL}/jobs | jq '.'
 echo ""
 
-echo "5. Submit a new job..."
+echo "5. Submit a new job (simplified: 1 job = 1 container)..."
 JOB_RESPONSE=$(curl -s -X POST ${API_URL}/jobs \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -45,21 +45,20 @@ JOB_RESPONSE=$(curl -s -X POST ${API_URL}/jobs \
     "name": "test-nginx",
     "type": "service",
     "datacenters": "dc1",
-    "tasks": [
-      {
-        "name": "web",
-        "driver": "podman",
-        "config": {
-          "image": "nginx:latest",
-          "options": {
-            "port": "8081:80"
-          }
-        },
-        "env": {
-          "NODE_ENV": "production"
-        }
-      }
-    ],
+    "driver": "podman",
+    "kind": "container",
+    "container_config": {
+      "image": "docker.io/library/nginx:latest",
+      "command": [],
+      "args": []
+    },
+    "env": {
+      "NODE_ENV": "production"
+    },
+    "resources": {
+      "memory_mb": 512,
+      "cpu": 1.0
+    },
     "meta": {
       "created_by": "test_script",
       "priority": "normal"

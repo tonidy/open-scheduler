@@ -25,29 +25,25 @@ message GetJobRequest {
   string node_id = 1;
 }
 
-// Job specification, inspired by Nomad job spec (simplified)
+// Job specification - simplified model where each job runs exactly one container
 message Job {
   string job_id = 1;
   string job_name = 2;
   string job_type = 3;              // Job type: "service", "batch", etc.
   repeated string selected_clusters = 4; // Clusters where this job can run (empty = any cluster)
 
-  repeated Task tasks = 5;
-  map<string, string> job_metadata = 6; // Job-level metadata
+  // Job execution configuration (merged from Task)
+  string driver_type = 5;        // Driver type: "podman", "incus", "exec"
+  string command = 6;             // Command or script to execute
+  ContainerSpec container_config = 7;
+  map<string, string> environment_variables = 8;
+  Resources resource_requirements = 9;
+  repeated Volume volume_mounts = 10;
+  string workload_type = 11;       // Workload type: "container", "vm", "process"
+  map<string, string> job_metadata = 12; // Job-level metadata
 }
 
-message Task {
-  string task_name = 1;
-  string driver_type = 2;        // Driver type: "podman", "incus", "exec"
-  string command = 3;             // Command or script to execute
-  ContainerSpec container_config = 4;
-  map<string, string> environment_variables = 5;
-  Resources resource_requirements = 6;
-  repeated Volume volume_mounts = 7;
-  string workload_type = 8;       // Workload type: "container", "vm", "process"
-}
-
-// Resource requirements and limits for task execution
+// Resource requirements and limits for job execution
 message Resources {
   int64 memory_limit_mb = 1;      // Maximum memory in MB
   int64 memory_reserved_mb = 2;   // Reserved/guaranteed memory in MB

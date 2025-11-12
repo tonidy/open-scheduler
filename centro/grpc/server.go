@@ -48,28 +48,26 @@ func (s *CentroServer) monitorNodes() {
 	}
 }
 
-// calculateJobResourceRequirements calculates the total resource requirements for all tasks in a job
+// calculateJobResourceRequirements calculates the resource requirements for the job
 // Returns: (cpuCores, ramMB, diskMB)
 func calculateJobResourceRequirements(job *pb.Job) (float32, float32, float32) {
 	var totalCPU float32
 	var totalRAM float32
-	var totalDisk float32 = 0 // Disk requirements are not typically per-task, but we'll keep this for consistency
+	var totalDisk float32 = 0 // Disk requirements are not typically specified, but we'll keep this for consistency
 
-	for _, task := range job.Tasks {
-		if task.ResourceRequirements != nil {
-			// Use cpu_limit_cores if set, otherwise use cpu_reserved_cores
-			if task.ResourceRequirements.CpuLimitCores > 0 {
-				totalCPU += float32(task.ResourceRequirements.CpuLimitCores)
-			} else if task.ResourceRequirements.CpuReservedCores > 0 {
-				totalCPU += float32(task.ResourceRequirements.CpuReservedCores)
-			}
+	if job.ResourceRequirements != nil {
+		// Use cpu_limit_cores if set, otherwise use cpu_reserved_cores
+		if job.ResourceRequirements.CpuLimitCores > 0 {
+			totalCPU = float32(job.ResourceRequirements.CpuLimitCores)
+		} else if job.ResourceRequirements.CpuReservedCores > 0 {
+			totalCPU = float32(job.ResourceRequirements.CpuReservedCores)
+		}
 
-			// Use memory_limit_mb if set, otherwise use memory_reserved_mb
-			if task.ResourceRequirements.MemoryLimitMb > 0 {
-				totalRAM += float32(task.ResourceRequirements.MemoryLimitMb)
-			} else if task.ResourceRequirements.MemoryReservedMb > 0 {
-				totalRAM += float32(task.ResourceRequirements.MemoryReservedMb)
-			}
+		// Use memory_limit_mb if set, otherwise use memory_reserved_mb
+		if job.ResourceRequirements.MemoryLimitMb > 0 {
+			totalRAM = float32(job.ResourceRequirements.MemoryLimitMb)
+		} else if job.ResourceRequirements.MemoryReservedMb > 0 {
+			totalRAM = float32(job.ResourceRequirements.MemoryReservedMb)
 		}
 	}
 
@@ -457,8 +455,6 @@ func (s *CentroServer) SetContainerData(ctx context.Context, req *pb.SetContaine
 			ResponseMessage: "container_data is required",
 		}, nil
 	}
-
-
 
 	// Log container data for monitoring
 	log.Printf("[Centro] Received container data for job %s from node %s: container=%s, status=%s, pid=%d",

@@ -205,6 +205,30 @@ func (s *Storage) SaveJobActive(ctx context.Context, jobID string, status *JobSt
 	return nil
 }
 
+func (s *Storage) GetListOfContainers(ctx context.Context) ([]ContainerItem, error) {
+	resp, err := s.client.Get(ctx, containerDataPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all containers: %w", err)
+	}
+
+	containers := make([]ContainerItem, 0, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		var rawContainer pb.ContainerData
+		if err := json.Unmarshal(kv.Value, &rawContainer); err != nil {
+			log.Printf("Failed to unmarshal container: %v", err)
+			continue
+		}
+		
+		cleanContainer := ContainerItem{
+			ContainerName: rawContainer.ContainerName,
+			Status:      rawContainer.Status,
+			Created:     rawContainer.Created,
+		}
+		containers = append(containers, cleanContainer)
+	}
+
+	return containers, nil
+}
 func (s *Storage) GetJobActive(ctx context.Context, jobID string) (*JobStatus, error) {
 	key := jobActivePrefix + jobID
 	resp, err := s.client.Get(ctx, key)
@@ -327,8 +351,28 @@ func (s *Storage) GetJobHistory(ctx context.Context, jobID string) (*JobStatus, 
 }
 
 func (s *Storage) SaveJobEvent(ctx context.Context, jobID string, event string) error {
+	// Remove timestamp (everything up to and including "] "), use the rest as the event message
+	getMessage := func(ev string) string {
+		if idx := strings.Index(ev, "] "); idx != -1 {
+			return ev[idx+2:]
+		}
+		return ev
+	}
+	newMsg := getMessage(event)
+
+	// Get the previous (most recent) event for this job, if any
+	prefix := jobEventsPrefix + jobID + "/"
+	resp, err := s.client.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortDescend), clientv3.WithLimit(1))
+	if err == nil && len(resp.Kvs) > 0 {
+		prevMsg := getMessage(string(resp.Kvs[0].Value))
+		if prevMsg == newMsg {
+			return nil // skip duplicate event regardless of timestamp
+		}
+	}
+	// if error above, fail open: allow event
+
 	key := fmt.Sprintf("%s%s/%d", jobEventsPrefix, jobID, time.Now().UnixNano())
-	_, err := s.client.Put(ctx, key, event)
+	_, err = s.client.Put(ctx, key, event)
 	if err != nil {
 		return fmt.Errorf("failed to save job event: %w", err)
 	}

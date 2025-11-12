@@ -8,7 +8,6 @@ import (
 
 	sharedgrpc "github.com/open-scheduler/agent/grpc"
 	"github.com/open-scheduler/agent/taskdriver"
-	"github.com/open-scheduler/agent/taskdriver/model"
 )
 
 type UpdateStatusService struct {
@@ -50,18 +49,18 @@ func (s *UpdateStatusService) Execute(ctx context.Context, nodeID string, token 
 	for _, container := range containers {
 		jobID, hasJobID := container.Labels["open-scheduler.job-id"]
 		if !hasJobID || jobID == "" {
-			log.Printf("[UpdateStatusService] Container %s has no job-id label, skipping", container.ID)
+			log.Printf("[UpdateStatusService] Container %s has no job-id label, skipping", container.ContainerId)
 			continue
 		}
 
 		jobStatus := mapContainerStatusToJobStatus(container.Status)
-		statusMessage := fmt.Sprintf("Container %s is %s", container.Name, container.Status)
+		statusMessage := fmt.Sprintf("Container %s is %s", container.ContainerName, container.Status)
 
-		if container.Status == model.ContainerStatusExited || container.Status == model.ContainerStatusFailed {
+		if container.Status == "exited" || container.Status == "failed" {
 			statusMessage = fmt.Sprintf("%s (exit code: %d)", statusMessage, container.ExitCode)
 		}
 
-		log.Printf("[UpdateStatusService] Updating job %s: status=%s, container=%s", jobID, jobStatus, container.ID)
+		log.Printf("[UpdateStatusService] Updating job %s: status=%s, container=%s", jobID, jobStatus, container.ContainerId)
 
 		resp, err := s.grpcClient.UpdateStatus(
 			ctx,
@@ -89,15 +88,15 @@ func (s *UpdateStatusService) Execute(ctx context.Context, nodeID string, token 
 	return nil
 }
 
-func mapContainerStatusToJobStatus(containerStatus model.ContainerStatus) string {
+func mapContainerStatusToJobStatus(containerStatus string) string {
 	switch containerStatus {
-	case model.ContainerStatusRunning:
+	case "running":
 		return "running"
-	case model.ContainerStatusExited:
+	case "exited":
 		return "completed"
-	case model.ContainerStatusFailed:
+	case "failed":
 		return "failed"
-	case model.ContainerStatusStopped:
+	case "stopped":
 		return "stopped"
 	default:
 		return "unknown"

@@ -13,7 +13,6 @@ import (
 	"github.com/containers/podman/v4/pkg/bindings/containers"
 	"github.com/containers/podman/v4/pkg/bindings/images"
 	"github.com/containers/podman/v4/pkg/specgen"
-	"github.com/open-scheduler/agent/taskdriver/model"
 	pb "github.com/open-scheduler/proto"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
@@ -102,15 +101,15 @@ func NewPodmanDriver() *PodmanDriver {
 	}
 }
 
-func (d *PodmanDriver) Run(ctx context.Context, task *pb.Task) error {
-	err := d.pullImage(ctx, task.ContainerConfig.ImageName)
+func (d *PodmanDriver) Run(ctx context.Context, job *pb.Job) error {
+	err := d.pullImage(ctx, job.ContainerConfig.ImageName)
 	if err != nil {
-		return fmt.Errorf("failed to pull image %s: %w", task.ContainerConfig.ImageName, err)
+		return fmt.Errorf("failed to pull image %s: %w", job.ContainerConfig.ImageName, err)
 	}
 
-	err = d.createContainer(ctx, task)
+	err = d.createContainer(ctx, job)
 	if err != nil {
-		return fmt.Errorf("failed to create container %s: %w", task.ContainerConfig.ImageName, err)
+		return fmt.Errorf("failed to create container %s: %w", job.ContainerConfig.ImageName, err)
 	}
 
 	return nil
@@ -125,60 +124,58 @@ func (d *PodmanDriver) pullImage(ctx context.Context, image string) error {
 	return nil
 }
 
-func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error {
-	s := specgen.NewSpecGenerator(task.ContainerConfig.ImageName, false)
+func (d *PodmanDriver) createContainer(ctx context.Context, job *pb.Job) error {
+	s := specgen.NewSpecGenerator(job.ContainerConfig.ImageName, false)
 	s.Terminal = true
 
 	// Set command and args if specified
-	if len(task.ContainerConfig.Entrypoint) > 0 {
-		s.Command = task.ContainerConfig.Entrypoint
+	if len(job.ContainerConfig.Entrypoint) > 0 {
+		s.Command = job.ContainerConfig.Entrypoint
 	}
-	if len(task.ContainerConfig.Arguments) > 0 {
-		s.Command = append(s.Command, task.ContainerConfig.Arguments...)
+	if len(job.ContainerConfig.Arguments) > 0 {
+		s.Command = append(s.Command, job.ContainerConfig.Arguments...)
 	}
 
 	labels := make(map[string]string)
 	labels["open-scheduler.managed"] = "true"
-	labels["open-scheduler.task-name"] = task.TaskName
+	labels["open-scheduler.job-name"] = job.JobName
+	labels["open-scheduler.job-id"] = job.JobId
 
-	if jobID, ok := ctx.Value("jobId").(string); ok && jobID != "" {
-		labels["open-scheduler.job-id"] = jobID
-	}
 	s.Labels = labels
 
-	if len(task.EnvironmentVariables) > 0 {
+	if len(job.EnvironmentVariables) > 0 {
 		envVars := make(map[string]string)
-		for k, v := range task.EnvironmentVariables {
+		for k, v := range job.EnvironmentVariables {
 			envVars[k] = v
 		}
 		s.Env = envVars
 	}
 
 	// Set resource limits
-	if task.ResourceRequirements != nil {
+	if job.ResourceRequirements != nil {
 		// Memory limits (convert MB to bytes)
-		if task.ResourceRequirements.MemoryLimitMb > 0 {
-			memoryLimit := task.ResourceRequirements.MemoryLimitMb * 1024 * 1024
+		if job.ResourceRequirements.MemoryLimitMb > 0 {
+			memoryLimit := job.ResourceRequirements.MemoryLimitMb * 1024 * 1024
 			s.ResourceLimits = &spec.LinuxResources{}
 			s.ResourceLimits.Memory = &spec.LinuxMemory{
 				Limit: &memoryLimit,
 			}
 			// Set memory reservation if specified
-			if task.ResourceRequirements.MemoryReservedMb > 0 {
-				memoryReserve := task.ResourceRequirements.MemoryReservedMb * 1024 * 1024
+			if job.ResourceRequirements.MemoryReservedMb > 0 {
+				memoryReserve := job.ResourceRequirements.MemoryReservedMb * 1024 * 1024
 				s.ResourceLimits.Memory.Reservation = &memoryReserve
 			}
 		}
 
 		// CPU limits
-		if task.ResourceRequirements.CpuLimitCores > 0 {
+		if job.ResourceRequirements.CpuLimitCores > 0 {
 			if s.ResourceLimits == nil {
 				s.ResourceLimits = &spec.LinuxResources{}
 			}
 			// Convert CPU float to quota/period
 			// Default period is 100000 microseconds (0.1s)
 			period := uint64(100000)
-			quota := int64(task.ResourceRequirements.CpuLimitCores * float32(period))
+			quota := int64(job.ResourceRequirements.CpuLimitCores * float32(period))
 			s.ResourceLimits.CPU = &spec.LinuxCPU{
 				Quota:  &quota,
 				Period: &period,
@@ -187,9 +184,9 @@ func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error
 	}
 
 	// Set volume mounts
-	if len(task.VolumeMounts) > 0 {
-		mounts := make([]spec.Mount, 0, len(task.VolumeMounts))
-		for _, vol := range task.VolumeMounts {
+	if len(job.VolumeMounts) > 0 {
+		mounts := make([]spec.Mount, 0, len(job.VolumeMounts))
+		for _, vol := range job.VolumeMounts {
 			mountType := "bind"
 			mountOpts := []string{"rbind"}
 			if vol.ReadOnly {
@@ -209,7 +206,7 @@ func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error
 	}
 
 	// Create container with spec
-	log.Printf("[PodmanDriver] Creating container with image: %s", task.ContainerConfig.ImageName)
+	log.Printf("[PodmanDriver] Creating container for job %s with image: %s", job.JobId, job.ContainerConfig.ImageName)
 	r, err := containers.CreateWithSpec(d.ctx, s, &containers.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
@@ -238,11 +235,26 @@ func (d *PodmanDriver) createContainer(ctx context.Context, task *pb.Task) error
 // StopContainer stops a running container
 func (d *PodmanDriver) StopContainer(ctx context.Context, containerID string) error {
 	log.Printf("[PodmanDriver] Stopping container: %s", containerID)
+	force := true
 	err := containers.Stop(d.ctx, containerID, &containers.StopOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to stop container %s: %w", containerID, err)
 	}
+	containers.Remove(d.ctx, containerID, &containers.RemoveOptions{
+		Force: &force,
+	})
 	log.Printf("[PodmanDriver] Container stopped: %s", containerID)
+	return nil
+}
+
+// RestartContainer restarts a running container
+func (d *PodmanDriver) RestartContainer(ctx context.Context, containerID string) error {
+	log.Printf("[PodmanDriver] Restarting container: %s", containerID)
+	err := containers.Restart(d.ctx, containerID, &containers.RestartOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to restart container %s: %w", containerID, err)
+	}
+	log.Printf("[PodmanDriver] Container restarted: %s", containerID)
 	return nil
 }
 
@@ -267,10 +279,10 @@ func (d *PodmanDriver) GetContainerStatus(ctx context.Context, containerID strin
 }
 
 // InspectContainer inspects a container
-func (d *PodmanDriver) InspectContainer(ctx context.Context, containerID string) (model.ContainerInspect, error) {
+func (d *PodmanDriver) InspectContainer(ctx context.Context, containerID string) (*pb.ContainerData, error) {
 	inspectData, err := containers.Inspect(d.ctx, containerID, nil)
 	if err != nil {
-		return model.ContainerInspect{}, fmt.Errorf("failed to inspect container %s: %w", containerID, err)
+		return nil, fmt.Errorf("failed to inspect container %s: %w", containerID, err)
 	}
 	// Extract volume/mount information
 	volumes := make([]string, 0, len(inspectData.Mounts))
@@ -298,26 +310,26 @@ func (d *PodmanDriver) InspectContainer(ctx context.Context, containerID string)
 		labels = inspectData.Config.Labels
 	}
 
-	return model.ContainerInspect{
-		ID:         inspectData.ID,
-		Name:       inspectData.Name,
-		Image:      inspectData.Image,
-		ImageName:  inspectData.ImageName,
-		Command:    command,
-		Args:       inspectData.Args,
-		Created:    inspectData.Created.Format("2006-01-02T15:04:05.999999999Z07:00"),
-		StartedAt:  inspectData.State.StartedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
-		FinishedAt: inspectData.State.FinishedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
-		Status:     model.ContainerStatus(inspectData.State.Status),
-		ExitCode:   int(inspectData.State.ExitCode),
-		Pid:        int(inspectData.State.Pid),
-		Labels:     labels,
-		Ports:      ports,
-		Volumes:    volumes,
+	return &pb.ContainerData{
+		ContainerId:   inspectData.ID,
+		ContainerName: inspectData.Name,
+		Image:         inspectData.Image,
+		ImageName:     inspectData.ImageName,
+		Command:       command,
+		Args:          inspectData.Args,
+		Created:       inspectData.Created.Format("2006-01-02T15:04:05.999999999Z07:00"),
+		StartedAt:     inspectData.State.StartedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
+		FinishedAt:    inspectData.State.FinishedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
+		Status:        inspectData.State.Status,
+		ExitCode:      int32(inspectData.State.ExitCode),
+		Pid:           int32(inspectData.State.Pid),
+		Labels:        labels,
+		Ports:         ports,
+		Volumes:       volumes,
 	}, nil
 }
 
-func (d *PodmanDriver) ListContainers(ctx context.Context) ([]model.ContainerInspect, error) {
+func (d *PodmanDriver) ListContainers(ctx context.Context) ([]*pb.ContainerData, error) {
 	log.Printf("[PodmanDriver] Listing all containers")
 
 	allContainers := true
@@ -328,7 +340,7 @@ func (d *PodmanDriver) ListContainers(ctx context.Context) ([]model.ContainerIns
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	result := make([]model.ContainerInspect, 0)
+	result := make([]*pb.ContainerData, 0)
 
 	for _, container := range containerList {
 		if container.Labels != nil {

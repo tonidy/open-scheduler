@@ -76,6 +76,97 @@ const docTemplate = `{
                 }
             }
         },
+        "/containers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a list of all containers in the cluster",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Containers"
+                ],
+                "summary": "List all containers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/containers/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves the container data associated with a specific job",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Containers"
+                ],
+                "summary": "Get container data for a job",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Container ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/jobs": {
             "get": {
                 "security": [
@@ -215,59 +306,6 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/jobs/{id}/container": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieves the container data associated with a specific job",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Jobs"
-                ],
-                "summary": "Get container data for a job",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Job ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -646,35 +684,6 @@ const docTemplate = `{
         "rest.SubmitJobRequest": {
             "type": "object",
             "properties": {
-                "datacenters": {
-                    "type": "string",
-                    "example": "dc1"
-                },
-                "meta": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string",
-                    "example": "web-server-job"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/rest.TaskRequest"
-                    }
-                },
-                "type": {
-                    "type": "string",
-                    "example": "service"
-                }
-            }
-        },
-        "rest.TaskRequest": {
-            "type": "object",
-            "properties": {
                 "command": {
                     "type": "string",
                     "example": "echo 'Hello World'"
@@ -686,28 +695,46 @@ const docTemplate = `{
                     "type": "string",
                     "example": "podman"
                 },
-                "env": {
+                "job_id": {
+                    "type": "string",
+                    "example": "123"
+                },
+                "job_name": {
+                    "type": "string",
+                    "example": "web-server-job"
+                },
+                "job_type": {
+                    "type": "string",
+                    "example": "service"
+                },
+                "meta": {
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
                     }
                 },
-                "kind": {
-                    "type": "string",
-                    "example": "container"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "nginx-task"
-                },
                 "resources": {
                     "$ref": "#/definitions/rest.ResourcesRequest"
+                },
+                "selected_clusters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "dc1",
+                        "dc2"
+                    ]
                 },
                 "volumes": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/rest.VolumeRequest"
                     }
+                },
+                "workload_type": {
+                    "type": "string",
+                    "example": "container"
                 }
             }
         },

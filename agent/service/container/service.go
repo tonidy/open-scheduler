@@ -8,8 +8,6 @@ import (
 
 	sharedgrpc "github.com/open-scheduler/agent/grpc"
 	"github.com/open-scheduler/agent/taskdriver"
-	"github.com/open-scheduler/agent/taskdriver/model"
-	pb "github.com/open-scheduler/proto"
 )
 
 type SetContainerDataService struct {
@@ -51,50 +49,18 @@ func (s *SetContainerDataService) Execute(ctx context.Context, nodeID string, to
 	for _, container := range containers {
 		jobID, hasJobID := container.Labels["open-scheduler.job-id"]
 		if !hasJobID || jobID == "" {
-			log.Printf("[SetContainerDataService] Container %s has no job-id label, skipping", container.ID)
+			log.Printf("[SetContainerDataService] Container %s has no job-id label, skipping", container.ContainerId)
 			continue
 		}
 
-		// Only send data for running containers
-		if container.Status != model.ContainerStatusRunning {
-			log.Printf("[SetContainerDataService] Container %s is not running (status: %s), skipping", container.ID, container.Status)
-			continue
-		}
-
-		// Inspect container to get detailed information
-		inspectData, err := s.driver.InspectContainer(ctx, container.ID)
-		if err != nil {
-			log.Printf("[SetContainerDataService] Failed to inspect container %s: %v", container.ID, err)
-			continue
-		}
-
-		// Convert model.ContainerInspect to pb.ContainerData
-		containerData := &pb.ContainerData{
-			ContainerId:   inspectData.ID,
-			ContainerName: inspectData.Name,
-			Image:         inspectData.Image,
-			ImageName:     inspectData.ImageName,
-			Command:       inspectData.Command,
-			Args:          inspectData.Args,
-			Created:       inspectData.Created,
-			StartedAt:     inspectData.StartedAt,
-			FinishedAt:    inspectData.FinishedAt,
-			Status:        string(inspectData.Status),
-			ExitCode:      int32(inspectData.ExitCode),
-			Pid:           int32(inspectData.Pid),
-			Labels:        inspectData.Labels,
-			Ports:         inspectData.Ports,
-			Volumes:       inspectData.Volumes,
-		}
-
-		log.Printf("[SetContainerDataService] Sending container data for job %s, container %s", jobID, container.ID)
+		log.Printf("[SetContainerDataService] Sending container data for job %s, container %s", jobID, container.ContainerId)
 
 		resp, err := s.grpcClient.SetContainerData(
 			ctx,
 			s.nodeID,
 			s.token,
 			jobID,
-			containerData,
+			container,
 			time.Now().Unix(),
 		)
 
@@ -113,4 +79,3 @@ func (s *SetContainerDataService) Execute(ctx context.Context, nodeID string, to
 
 	return nil
 }
-
