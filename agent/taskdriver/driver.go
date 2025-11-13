@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/open-scheduler/agent/taskdriver/exec"
+	"github.com/open-scheduler/agent/taskdriver/process"
 	"github.com/open-scheduler/agent/taskdriver/incus"
 	"github.com/open-scheduler/agent/taskdriver/podman"
 	pb "github.com/open-scheduler/proto"
 )
 
 type Driver interface {
-	Run(ctx context.Context, job *pb.Job) error
+	Run(ctx context.Context, job *pb.Job) (string, error)
 	StopInstance(ctx context.Context, instanceID string) error
 	RestartInstance(ctx context.Context, instanceID string) error
 	GetInstanceStatus(ctx context.Context, instanceID string) (string, error)
@@ -35,11 +35,11 @@ func NewDriver(name string) (Driver, error) {
 			return nil, fmt.Errorf("failed to create incus driver")
 		}
 		return driver, nil
-	case "exec":
+	case "process":
 		// Direct shell command execution
-		driver := exec.NewExecDriver()
+		driver := process.NewProcessDriver()
 		if driver == nil {
-			return nil, fmt.Errorf("failed to create exec driver")
+			return nil, fmt.Errorf("failed to create process driver")
 		}
 		return driver, nil
 	default:

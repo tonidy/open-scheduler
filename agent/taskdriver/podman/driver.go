@@ -105,18 +105,18 @@ func NewPodmanDriver() *PodmanDriver {
 	}
 }
 
-func (d *PodmanDriver) Run(ctx context.Context, job *pb.Job) error {
+func (d *PodmanDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
 	err := d.pullImage(ctx, job.InstanceConfig.ImageName)
 	if err != nil {
-		return fmt.Errorf("failed to pull image %s: %w", job.InstanceConfig.ImageName, err)
+		return "", fmt.Errorf("failed to pull image %s: %w", job.InstanceConfig.ImageName, err)
 	}
 
-	err = d.createInstance(ctx, job)
+	id, err := d.createInstance(ctx, job)
 	if err != nil {
-		return fmt.Errorf("failed to create instance %s: %w", job.InstanceConfig.ImageName, err)
-	}
+		return "", fmt.Errorf("failed to create instance %s: %w", job.InstanceConfig.ImageName, err)
+	}	
 
-	return nil
+	return id, nil
 }
 
 func (d *PodmanDriver) pullImage(ctx context.Context, image string) error {
@@ -128,7 +128,7 @@ func (d *PodmanDriver) pullImage(ctx context.Context, image string) error {
 	return nil
 }
 
-func (d *PodmanDriver) createInstance(ctx context.Context, job *pb.Job) error {
+func (d *PodmanDriver) createInstance(ctx context.Context, job *pb.Job) (string, error) {
 	s := specgen.NewSpecGenerator(job.InstanceConfig.ImageName, false)
 	s.Terminal = true
 
@@ -209,18 +209,16 @@ func (d *PodmanDriver) createInstance(ctx context.Context, job *pb.Job) error {
 		s.Mounts = mounts
 	}
 
-	// Create instance (using containers for podman compatibility)
 	log.Printf("[PodmanDriver] Creating instance for job %s with image: %s", job.JobId, job.InstanceConfig.ImageName)
 	r, err := containers.CreateWithSpec(d.ctx, s, &containers.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create instance: %w", err)
+		return "", fmt.Errorf("failed to create instance: %w", err)
 	}
-
-	// Instance start
+	
 	log.Printf("[PodmanDriver] Starting instance: %s", r.ID)
 	err = containers.Start(d.ctx, r.ID, nil)
 	if err != nil {
-		return fmt.Errorf("failed to start instance: %w", err)
+		return "", fmt.Errorf("failed to start instance: %w", err)
 	}
 
 	// Wait for instance to be running
@@ -229,14 +227,13 @@ func (d *PodmanDriver) createInstance(ctx context.Context, job *pb.Job) error {
 		Condition: []define.ContainerStatus{define.ContainerStateRunning},
 	})
 	if err != nil {
-		return fmt.Errorf("instance wait failed: %w", err)
+		return "", fmt.Errorf("instance wait failed: %w", err)
 	}
 
 	log.Printf("[PodmanDriver] Instance is running: %s", r.ID)
-	return nil
+	return r.ID, nil
 }
 
-// StopInstance stops a running instance
 func (d *PodmanDriver) StopInstance(ctx context.Context, instanceID string) error {
 	log.Printf("[PodmanDriver] Stopping instance: %s", instanceID)
 	force := true

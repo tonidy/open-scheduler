@@ -17,9 +17,9 @@ func NewIncusDriver() *IncusDriver {
 	}
 }
 
-func (d *IncusDriver) Run(ctx context.Context, job *pb.Job) error {
+func (d *IncusDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
 	// TODO: Implement Incus driver
-	return nil
+	return "", fmt.Errorf("Run not implemented for Incus driver")
 }
 
 // StopInstance stops a running instance (to be implemented)

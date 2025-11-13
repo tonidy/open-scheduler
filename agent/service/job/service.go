@@ -7,21 +7,24 @@ import (
 	"time"
 
 	agentgrpc "github.com/open-scheduler/agent/grpc"
+	"github.com/open-scheduler/agent/service/instance"
 	"github.com/open-scheduler/agent/taskdriver"
 	pb "github.com/open-scheduler/proto"
 )
 
 type GetJobService struct {
 	grpcClient *agentgrpc.GrpcClient
+	instanceService *instance.SetInstanceDataService
 }
 
-func NewGetJobService(grpcClient *agentgrpc.GrpcClient) (*GetJobService, error) {
+func NewGetJobService(grpcClient *agentgrpc.GrpcClient, instanceService *instance.SetInstanceDataService) (*GetJobService, error) {
 	if grpcClient == nil {
 		return nil, fmt.Errorf("gRPC client cannot be nil")
 	}
 
 	return &GetJobService{
 		grpcClient: grpcClient,
+		instanceService: instanceService,
 	}, nil
 }
 
@@ -55,10 +58,9 @@ func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID strin
 
 	log.Printf("[GetJobService] Running job: %s (%s) with driver: %s", job.JobName, job.JobId, job.DriverType)
 
-	s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running job: %s", job.JobName))
-
-	// Run the job directly (each job is now a single container)
-	err = driver.Run(ctx, job)
+	s.updateJobStatus(ctx, job.JobId, nodeID, token, "provisioning", fmt.Sprintf("Provisioning job: %s", job.JobName))
+	
+	id, err := driver.Run(ctx, job)
 	if err != nil {
 		// Report failure to Centro
 		errMsg := fmt.Sprintf("Job execution failed: %v", err)
@@ -66,6 +68,13 @@ func (s *GetJobService) handleJob(ctx context.Context, job *pb.Job, nodeID strin
 		s.updateJobStatus(ctx, job.JobId, nodeID, token, "failed", errMsg)
 		return fmt.Errorf("failed to run job %s: %w", job.JobName, err)
 	}
+
+	err = s.instanceService.SetInstanceData(ctx, nodeID, token, job.JobId, id)
+	if err != nil {
+		return fmt.Errorf("failed to set instance data: %w", err)
+	}
+
+	s.updateJobStatus(ctx, job.JobId, nodeID, token, "running", fmt.Sprintf("Running job: %s", job.JobName))
 
 	log.Printf("[GetJobService] Job %s started successfully", job.JobName)
 
@@ -83,7 +92,7 @@ func (s *GetJobService) updateJobStatus(ctx context.Context, jobID string, nodeI
 
 	if !resp.Acknowledged {
 		return fmt.Errorf("UpdateStatus failed: %s", resp.ResponseMessage)
-	}
+	}	
 
 	log.Printf("[GetJobService] Status updated: %s", resp.ResponseMessage)
 	return nil

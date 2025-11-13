@@ -6,14 +6,15 @@ import (
 
 	agentgrpc "github.com/open-scheduler/agent/grpc"
 	"github.com/open-scheduler/agent/service/job"
+	"github.com/open-scheduler/agent/service/instance"
 )
 
 type GetJobCommand struct {
 	service *job.GetJobService
 }
 
-func NewGetJobCommand(grpcClient *agentgrpc.GrpcClient) *GetJobCommand {
-	service, err := job.NewGetJobService(grpcClient)
+func NewGetJobCommand(grpcClient *agentgrpc.GrpcClient, instanceService *instance.SetInstanceDataService) *GetJobCommand {
+	service, err := job.NewGetJobService(grpcClient, instanceService)
 	if err != nil {
 		log.Fatalf("[GetJobCommand] Failed to create service: %v", err)
 	}

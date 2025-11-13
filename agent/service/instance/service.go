@@ -79,3 +79,36 @@ func (s *SetInstanceDataService) Execute(ctx context.Context, nodeID string, tok
 
 	return nil
 }
+
+func (s *SetInstanceDataService) SetInstanceData(ctx context.Context, nodeID string, token string, jobID string, instanceID string) error {
+	log.Printf("[SetInstanceDataService] Setting instance data for job %s, instance %s", jobID, instanceID)
+
+	instance, err := s.driver.InspectInstance(ctx, instanceID)
+	if err != nil {
+		log.Printf("[SetInstanceDataService] Failed to inspect instance: %v", err)
+		return fmt.Errorf("failed to inspect instance: %w", err)
+	}
+
+	log.Printf("[SetInstanceDataService] Instance data: %+v", instance)
+	resp, err := s.grpcClient.SetInstanceData(
+		ctx,
+		s.nodeID,
+		s.token,
+		jobID,
+		instance,
+		time.Now().Unix(),
+	)
+	if err != nil {
+		log.Printf("[SetInstanceDataService] Failed to send instance data: %v", err)
+		return fmt.Errorf("failed to send instance data: %w", err)
+	}
+
+	if !resp.Acknowledged {
+		log.Printf("[SetInstanceDataService] Instance data rejected: %s", resp.ResponseMessage)
+		return fmt.Errorf("instance data rejected: %s", resp.ResponseMessage)
+	}
+
+	log.Printf("[SetInstanceDataService] Instance data sent successfully: %s", resp.ResponseMessage)
+
+	return nil
+}

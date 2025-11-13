@@ -107,7 +107,7 @@ func main() {
 	}
 
 	executor.Register(commands.NewHeartbeatCommand(grpcClient))
-	executor.Register(commands.NewGetJobCommand(grpcClient))
+	executor.Register(commands.NewGetJobCommand(grpcClient, instanceService))
 	executor.Register(commands.NewUpdateStatusCommand(statusService))
 	executor.Register(commands.NewSetInstanceDataCommand(instanceService))
 	executor.Register(commands.NewCleanUpInstancesCommand(cleanupService))

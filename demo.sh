@@ -13,6 +13,8 @@ etcdctl --endpoints=localhost:2379 del --prefix "/centro/" || {
     echo " [!] Failed to clean etcd. Is etcd running and etcdctl installed?"
 }
 
+go build -o osctl ./cli
+
 echo "==> Building Centro server..."
 go build -o centro_server ./centro
 

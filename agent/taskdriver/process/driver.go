@@ -1,4 +1,4 @@
-package exec
+package process
 
 import (
 	"context"
@@ -11,25 +11,25 @@ import (
 	pb "github.com/open-scheduler/proto"
 )
 
-type ExecDriver struct {
+type ProcessDriver struct {
 	processes map[string]*os.Process
 	mu        sync.RWMutex
 }
 
-func NewExecDriver() *ExecDriver {
-	log.Printf("[ExecDriver] Initializing exec driver for direct shell commands")
-	return &ExecDriver{
+func NewProcessDriver() *ProcessDriver {
+	log.Printf("[ProcessDriver] Initializing process driver for direct shell commands")
+	return &ProcessDriver{
 		processes: make(map[string]*os.Process),
 	}
 }
 
-func (d *ExecDriver) Run(ctx context.Context, job *pb.Job) error {
-	log.Printf("[ExecDriver] Running job: %s (ID: %s)", job.JobName, job.JobId)
+func (d *ProcessDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
+	log.Printf("[ProcessDriver] Running job: %s (ID: %s)", job.JobName, job.JobId)
 
 	// Build command
 	var cmd *exec.Cmd
 	if len(job.InstanceConfig.Entrypoint) == 0 {
-		return fmt.Errorf("no command specified for job %s", job.JobName)
+		return "", fmt.Errorf("no command specified for job %s", job.JobName)
 	}
 
 	// Create command with args
@@ -57,9 +57,9 @@ func (d *ExecDriver) Run(ctx context.Context, job *pb.Job) error {
 	cmd.Stdin = os.Stdin
 
 	// Start the command
-	log.Printf("[ExecDriver] Starting command: %v", job.InstanceConfig.Entrypoint)
+	log.Printf("[ProcessDriver] Starting command: %v", job.InstanceConfig.Entrypoint)
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start command: %w", err)
+		return "", fmt.Errorf("failed to start command: %w", err)
 	}
 
 	// Store process using job ID as key
@@ -67,7 +67,7 @@ func (d *ExecDriver) Run(ctx context.Context, job *pb.Job) error {
 	d.processes[job.JobId] = cmd.Process
 	d.mu.Unlock()
 
-	log.Printf("[ExecDriver] Command started with PID: %d for job %s", cmd.Process.Pid, job.JobId)
+	log.Printf("[ProcessDriver] Command started with PID: %d for job %s", cmd.Process.Pid, job.JobId)
 
 	// Wait for command to complete in a goroutine
 	go func() {
@@ -77,38 +77,39 @@ func (d *ExecDriver) Run(ctx context.Context, job *pb.Job) error {
 		d.mu.Unlock()
 
 		if err != nil {
-			log.Printf("[ExecDriver] Command failed for job %s: %v", job.JobId, err)
+			log.Printf("[ProcessDriver] Command failed for job %s: %v", job.JobId, err)
 		} else {
-			log.Printf("[ExecDriver] Command completed successfully for job %s", job.JobId)
+			log.Printf("[ProcessDriver] Command completed successfully for job %s", job.JobId)
 		}
 	}()
 
-	return nil
+	return fmt.Sprintf("%d", cmd.Process.Pid), nil
 }
 
 // StopInstance is a mock implementation for the Driver interface
-func (d *ExecDriver) StopInstance(ctx context.Context, instanceID string) error {
-	log.Printf("[ExecDriver] StopInstance called for: %s (not implemented)", instanceID)
-	return nil
+func (d *ProcessDriver) StopInstance(ctx context.Context, instanceID string) error {
+	log.Printf("[ProcessDriver] StopInstance called for: %s (not implemented)", instanceID)
+	return fmt.Errorf("StopInstance not implemented for process driver")
 }
 
 // RestartInstance is a mock implementation for the Driver interface
-func (d *ExecDriver) RestartInstance(ctx context.Context, instanceID string) error {
-	log.Printf("[ExecDriver] RestartInstance called for: %s (not implemented)", instanceID)
-	return nil
+func (d *ProcessDriver) RestartInstance(ctx context.Context, instanceID string) error {
+	log.Printf("[ProcessDriver] RestartInstance called for: %s (not implemented)", instanceID)
+	return fmt.Errorf("RestartInstance not implemented for process driver")
 }
 
 // GetInstanceStatus is a mock implementation for the Driver interface
-func (d *ExecDriver) GetInstanceStatus(ctx context.Context, instanceID string) (string, error) {
-	log.Printf("[ExecDriver] GetInstanceStatus called for: %s (not implemented)", instanceID)
+func (d *ProcessDriver) GetInstanceStatus(ctx context.Context, instanceID string) (string, error) {
+	log.Printf("[ProcessDriver] GetInstanceStatus called for: %s (not implemented)", instanceID)
 	return "unknown", nil
 }
 
-func (d *ExecDriver) InspectInstance(ctx context.Context, instanceID string) (*pb.InstanceData, error) {
-	log.Printf("[ExecDriver] InspectInstance called for: %s (not implemented)", instanceID)
-	return nil, fmt.Errorf("InspectInstance not implemented for exec driver")
+func (d *ProcessDriver) InspectInstance(ctx context.Context, instanceID string) (*pb.InstanceData, error) {
+	log.Printf("[ProcessDriver] InspectInstance called for: %s (not implemented)", instanceID)
+	return nil, fmt.Errorf("InspectInstance not implemented for process driver")
 }
 
-func (d *ExecDriver) ListInstances(ctx context.Context) ([]*pb.InstanceData, error) {
+func (d *ProcessDriver) ListInstances(ctx context.Context) ([]*pb.InstanceData, error) {
+	log.Printf("[ProcessDriver] ListInstances called (not implemented)")
 	return []*pb.InstanceData{}, nil
 }

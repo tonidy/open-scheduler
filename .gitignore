@@ -27,6 +27,7 @@ etcd.log
 # Dependency directories
 vendor/
 
+osctl
 panel/panel.log
 panel/node_modules
 panel/dist
