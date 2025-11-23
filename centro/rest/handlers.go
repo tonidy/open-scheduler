@@ -342,7 +342,8 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		RetryCount:       0,
 		MaxRetries:       3, // Default: retry up to 3 times
 		LastRetryTime:    0,
-		TimeoutSeconds:   req.TimeoutSeconds, // Job execution timeout (0 = no timeout)
+		// TODO: Set TimeoutSeconds once proto files are regenerated with updated Job message
+		// TimeoutSeconds: req.TimeoutSeconds, // Job execution timeout (0 = no timeout)
 	}
 	if req.InstanceConfig != nil {
 		job.InstanceConfig = &pb.InstanceSpec{
@@ -374,7 +375,6 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		job.JobMetadata = req.Meta
 	}
 
-	ctx := context.Background()
 	if err := s.storage.EnqueueJob(ctx, job); err != nil {
 		log.Printf("[Centro REST] Failed to enqueue job: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to submit job")
