@@ -3,6 +3,7 @@ package rest
 import (
 	"fmt"
 	"log"
+	"os"
 	"sync"
 
 	"golang.org/x/crypto/bcrypt"
@@ -28,8 +29,12 @@ var userManager *UserManager
 func init() {
 	userManager = NewUserManager()
 	// Initialize with default admin user
-	// Default password: admin123 (MUST be changed in production)
-	defaultPassword := "admin123"
+	// Password can be set via ADMIN_PASSWORD env var, default: admin123
+	defaultPassword := os.Getenv("ADMIN_PASSWORD")
+	if defaultPassword == "" {
+		log.Println("[Centro Auth] WARNING: ADMIN_PASSWORD not set. Using default password 'admin123'. Change this in production!")
+		defaultPassword = "admin123"
+	}
 	if err := userManager.CreateUser("admin", defaultPassword, "admin"); err != nil {
 		log.Printf("[Centro Auth] Failed to create default admin user: %v", err)
 	}
