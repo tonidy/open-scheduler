@@ -46,6 +46,9 @@ message Job {
   int32 retry_count = 13;          // Number of times this job has been retried
   int32 max_retries = 14;          // Maximum number of retries allowed (0 = no limit)
   int64 last_retry_time = 15;      // Unix timestamp of last retry attempt
+
+  // Job timeout and execution limits
+  int64 timeout_seconds = 16;      // Job execution timeout in seconds (0 = no timeout)
 }
 
 // Resource requirements and limits for job execution

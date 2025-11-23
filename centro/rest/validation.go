@@ -76,6 +76,17 @@ func ValidateJobRequest(req *SubmitJobRequest) error {
 		}
 	}
 
+	// Validate timeout (if specified)
+	if req.TimeoutSeconds < 0 {
+		return fmt.Errorf("timeout_seconds cannot be negative")
+	}
+	if req.TimeoutSeconds > 0 && req.TimeoutSeconds < 10 {
+		return fmt.Errorf("timeout_seconds must be at least 10 seconds if specified")
+	}
+	if req.TimeoutSeconds > 86400 { // 24 hours max
+		return fmt.Errorf("timeout_seconds exceeds maximum (24 hours)")
+	}
+
 	return nil
 }
 

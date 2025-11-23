@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/containers/podman/v4/libpod/define"
 	"github.com/containers/podman/v4/pkg/bindings"
@@ -106,6 +107,14 @@ func NewPodmanDriver() *PodmanDriver {
 }
 
 func (d *PodmanDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
+	// Apply job timeout if specified
+	if job.TimeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
+		defer cancel()
+		log.Printf("[PodmanDriver] Job timeout set to %d seconds", job.TimeoutSeconds)
+	}
+
 	err := d.pullImage(ctx, job.InstanceConfig.ImageName)
 	if err != nil {
 		return "", fmt.Errorf("failed to pull image %s: %w", job.InstanceConfig.ImageName, err)
@@ -114,7 +123,7 @@ func (d *PodmanDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
 	id, err := d.createInstance(ctx, job)
 	if err != nil {
 		return "", fmt.Errorf("failed to create instance %s: %w", job.InstanceConfig.ImageName, err)
-	}	
+	}
 
 	return id, nil
 }

@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"fmt"
+	"time"
 
 	pb "github.com/open-scheduler/proto"
 )
@@ -18,6 +19,14 @@ func NewIncusDriver() *IncusDriver {
 }
 
 func (d *IncusDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
+	// Apply job timeout if specified
+	if job.TimeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
+		defer cancel()
+		fmt.Printf("[IncusDriver] Job timeout set to %d seconds\n", job.TimeoutSeconds)
+	}
+
 	// TODO: Implement Incus driver
 	return "", fmt.Errorf("Run not implemented for Incus driver")
 }

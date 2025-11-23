@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	pb "github.com/open-scheduler/proto"
 )
@@ -25,6 +26,14 @@ func NewProcessDriver() *ProcessDriver {
 
 func (d *ProcessDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
 	log.Printf("[ProcessDriver] Running job: %s (ID: %s)", job.JobName, job.JobId)
+
+	// Apply job timeout if specified
+	if job.TimeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
+		defer cancel()
+		log.Printf("[ProcessDriver] Job timeout set to %d seconds", job.TimeoutSeconds)
+	}
 
 	// Build command
 	var cmd *exec.Cmd

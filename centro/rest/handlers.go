@@ -276,6 +276,7 @@ type SubmitJobRequest struct {
 	Driver           string               `json:"driver" example:"podman"`
 	WorkloadType     string               `json:"workload_type" example:"container"`
 	Command          string               `json:"command" example:"echo 'Hello World'"`
+	TimeoutSeconds   int64                `json:"timeout_seconds,omitempty" example:"300"` // Job execution timeout in seconds (0 = no timeout)
 	InstanceConfig   *InstanceSpecRequest `json:"instance_config,omitempty"`
 	Resources        *ResourcesRequest    `json:"resources,omitempty"`
 	Volumes          []VolumeRequest      `json:"volumes,omitempty"`
@@ -341,6 +342,7 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		RetryCount:       0,
 		MaxRetries:       3, // Default: retry up to 3 times
 		LastRetryTime:    0,
+		TimeoutSeconds:   req.TimeoutSeconds, // Job execution timeout (0 = no timeout)
 	}
 	if req.InstanceConfig != nil {
 		job.InstanceConfig = &pb.InstanceSpec{
