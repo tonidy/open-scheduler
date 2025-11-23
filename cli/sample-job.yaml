@@ -1,18 +1,11 @@
 # Example Job spec for Open Scheduler (based on proto Job definition)
-job_id: "test-job-1-cli"
-job_name: "Test Job CLI"
+job_id: "job2-demo"
+job_name: "Job 22 Demo"
 job_type: "single"
-selected_clusters:
-  - "default-cluster"
 driver_type: "podman"
 command: "/bin/sh -c 'echo hello world'"
 instance_config:
-  image_name: "alpine:latest"
-  entrypoint:
-    - "/bin/sh"
-  arguments:
-    - "-c"
-    - "echo hello world"
+  image_name: "docker.io/library/alpine:latest"
   driver_options:
     restart_policy: "OnFailure"
 environment_variables:
@@ -23,10 +16,6 @@ resource_requirements:
   memory_reserved_mb: 64
   cpu_limit_cores: 0.5
   cpu_reserved_cores: 0.25
-volume_mounts:
-  - source_path: "/tmp/data"
-    target_path: "/mnt/data"
-    read_only: false
 workload_type: "container"
 job_metadata:
   creator: "admin"

@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/open-scheduler/agent/taskdriver/process"
+	"github.com/open-scheduler/agent/taskdriver/containerd"
 	"github.com/open-scheduler/agent/taskdriver/incus"
 	"github.com/open-scheduler/agent/taskdriver/podman"
+	"github.com/open-scheduler/agent/taskdriver/process"
 	pb "github.com/open-scheduler/proto"
 )
 
@@ -26,6 +27,13 @@ func NewDriver(name string) (Driver, error) {
 		driver := podman.NewPodmanDriver()
 		if driver == nil {
 			return nil, fmt.Errorf("failed to create podman driver")
+		}
+		return driver, nil
+	case "containerd":
+		// Import locally to avoid import cycle
+		driver := containerd.NewContainerdDriver()
+		if driver == nil {
+			return nil, fmt.Errorf("failed to create containerd driver")
 		}
 		return driver, nil
 	case "incus":
