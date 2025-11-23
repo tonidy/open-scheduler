@@ -102,23 +102,34 @@ func main() {
 		Handler: apiServer.GetRouter(),
 	}
 
+	// Create cancellable context for all background goroutines
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+	defer bgCancel()
+
 	queue := scheduler.NewQueue(storage)
-	go queue.StartScheduler(context.Background())
+	go queue.StartScheduler(bgCtx)
 
 	go func() {
 		time.Sleep(5 * time.Second)
 		migration.SeedTestData(centroServer)
 	}()
 
+	// Status logging goroutine with proper cancellation
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			nodeCount := centroServer.GetNodeCount()
-			queued, active, completed := centroServer.GetJobStats()
-			log.Printf("[Centro] Status - Nodes: %d, Jobs (Queued: %d, Active: %d, Completed: %d)",
-				nodeCount, queued, active, completed)
+		for {
+			select {
+			case <-bgCtx.Done():
+				log.Printf("[Centro] Status logging goroutine shutting down")
+				return
+			case <-ticker.C:
+				nodeCount := centroServer.GetNodeCount()
+				queued, active, completed := centroServer.GetJobStats()
+				log.Printf("[Centro] Status - Nodes: %d, Jobs (Queued: %d, Active: %d, Completed: %d)",
+					nodeCount, queued, active, completed)
+			}
 		}
 	}()
 
@@ -144,6 +155,12 @@ func main() {
 
 	<-sigChan
 	log.Println("\n[Centro] Shutting down gracefully...")
+
+	// Cancel all background goroutines first
+	bgCancel()
+	log.Printf("[Centro] Stopping background services...")
+	// Give goroutines a moment to exit cleanly
+	time.Sleep(100 * time.Millisecond)
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
