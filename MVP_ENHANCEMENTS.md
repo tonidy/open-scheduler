@@ -29,14 +29,21 @@ This document tracks the critical enhancements needed to make Open Scheduler pro
 - **Features:**
   - Password hashing with bcrypt (cost factor 10)
   - User management system (CreateUser, VerifyCredentials, ChangePassword)
-  - Default admin user: `admin/admin123` (MUST be changed in production)
+  - Default admin user: configurable via `ADMIN_PASSWORD` env var
+  - Fallback to `admin/admin123` if env var not set (with warning)
   - Proper timing attack prevention
   - Min 8-character password enforcement
 - **Default Users:** admin user auto-created on startup
+- **Environment Variable:**
+  ```bash
+  export ADMIN_PASSWORD="your-secure-password-here"
+  ./centro_server
+  ```
 - **Benefits:**
   - Secure password storage (bcrypt hashing)
   - Prevents plaintext password exposure
   - Ready for multi-user support
+  - Per-environment password configuration
 
 #### 1.3 CORS Security
 - **File:** `centro/rest/middleware.go:102-149`
@@ -255,6 +262,7 @@ This document tracks the critical enhancements needed to make Open Scheduler pro
 ```bash
 # Security variables
 export JWT_SECRET="your-production-secret-here"
+export ADMIN_PASSWORD="SecureAdminPass123!"
 export ALLOWED_ORIGINS="https://app.example.com"
 export GRPC_SERVER_TLS_ENABLED=true
 export GRPC_SERVER_TLS_CERT_FILE=/etc/certs/server-cert.pem
