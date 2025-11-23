@@ -74,7 +74,21 @@ func main() {
 
 	log.Printf("[Centro] Starting gRPC server on %s", address)
 
-	grpcServer := grpc.NewServer()
+	// Load TLS configuration for gRPC server
+	tlsConfig := centrogrpc.LoadServerTLSConfigFromEnv()
+	var grpcServer *grpc.Server
+
+	if tlsConfig.Enabled {
+		creds, err := centrogrpc.GetServerTLSCredentials(tlsConfig)
+		if err != nil {
+			log.Fatalf("Failed to setup TLS credentials: %v", err)
+		}
+		grpcServer = grpc.NewServer(grpc.Creds(creds))
+		log.Printf("[Centro] TLS enabled for gRPC server")
+	} else {
+		grpcServer = grpc.NewServer()
+		log.Printf("[Centro] WARNING: TLS is disabled. Enable GRPC_SERVER_TLS_ENABLED in production!")
+	}
 
 	centroServer := centrogrpc.NewCentroServer(storage)
 	pb.RegisterCentroSchedulerServiceServer(grpcServer, centroServer)
