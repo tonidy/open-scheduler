@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -61,6 +62,24 @@ func (s *APIServer) setupRoutes() {
 
 func (s *APIServer) GetRouter() *mux.Router {
 	return s.router
+}
+
+// getRequestContext returns a context with timeout for API requests
+// Default timeout is 10 seconds for most operations, 30 seconds for list operations
+func (s *APIServer) getRequestContext(r *http.Request, defaultTimeout time.Duration) (context.Context, context.CancelFunc) {
+	timeout := defaultTimeout
+	if timeout == 0 {
+		timeout = 10 * time.Second // Default timeout
+	}
+
+	// Allow query parameter to override timeout (max 60 seconds for safety)
+	if timeoutStr := r.URL.Query().Get("timeout"); timeoutStr != "" {
+		if parsedTimeout, err := time.ParseDuration(timeoutStr); err == nil && parsedTimeout > 0 && parsedTimeout <= 60*time.Second {
+			timeout = parsedTimeout
+		}
+	}
+
+	return context.WithTimeout(context.Background(), timeout)
 }
 
 type LoginRequest struct {
@@ -132,7 +151,9 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string
 // @Router /jobs [get]
 func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx, cancel := s.getRequestContext(r, 30*time.Second) // List ops need more time
+	defer cancel()
+
 	statusFilter := r.URL.Query().Get("status")
 
 	response := make(map[string]interface{})
@@ -293,6 +314,9 @@ type InstanceSpecRequest struct {
 // @Failure 500 {object} map[string]string
 // @Router /jobs [post]
 func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.getRequestContext(r, 15*time.Second)
+	defer cancel()
+
 	var req SubmitJobRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
@@ -376,6 +400,9 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} map[string]string
 // @Router /jobs/{id} [get]
 func (s *APIServer) handleGetJob(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.getRequestContext(r, 10*time.Second)
+	defer cancel()
+
 	vars := mux.Vars(r)
 	jobID := vars["id"]
 
@@ -383,8 +410,6 @@ func (s *APIServer) handleGetJob(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "Job ID is required")
 		return
 	}
-
-	ctx := context.Background()
 
 	activeJob, err := s.storage.GetJobActive(ctx, jobID)
 	if err != nil {
@@ -490,6 +515,9 @@ func (s *APIServer) handleGetJob(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} map[string]string
 // @Router /jobs/{id}/status [get]
 func (s *APIServer) handleGetJobStatus(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.getRequestContext(r, 10*time.Second)
+	defer cancel()
+
 	vars := mux.Vars(r)
 	jobID := vars["id"]
 
@@ -497,8 +525,6 @@ func (s *APIServer) handleGetJobStatus(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "Job ID is required")
 		return
 	}
-
-	ctx := context.Background()
 
 	activeJob, err := s.storage.GetJobActive(ctx, jobID)
 	if err != nil && err.Error() != "job not found" {
@@ -550,7 +576,9 @@ func (s *APIServer) handleGetJobStatus(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string
 // @Router /instances [get]
 func (s *APIServer) handleListInstances(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx, cancel := s.getRequestContext(r, 30*time.Second)
+	defer cancel()
+
 	instances, err := s.storage.GetListOfInstances(ctx)
 	if err != nil {
 		log.Printf("[Centro REST] Failed to get instances: %v", err)
@@ -575,10 +603,12 @@ func (s *APIServer) handleListInstances(w http.ResponseWriter, r *http.Request) 
 // @Failure 500 {object} map[string]string
 // @Router /jobs/{id}/events [get]
 func (s *APIServer) handleGetJobEvents(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.getRequestContext(r, 10*time.Second)
+	defer cancel()
+
 	vars := mux.Vars(r)
 	jobID := vars["id"]
 
-	ctx := context.Background()
 	events, err := s.storage.GetJobEvents(ctx, jobID)
 	if err != nil {
 		log.Printf("[Centro REST] Failed to get job events: %v", err)
@@ -649,10 +679,12 @@ func extractEventMessage(event string) string {
 // @Failure 500 {object} map[string]string
 // @Router /instances/{id} [get]
 func (s *APIServer) handleGetInstanceData(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.getRequestContext(r, 10*time.Second)
+	defer cancel()
+
 	vars := mux.Vars(r)
 	jobID := vars["id"]
 
-	ctx := context.Background()
 	instanceData, err := s.storage.GetInstanceData(ctx, jobID)
 	if err != nil {
 		log.Printf("[Centro REST] Failed to get instance data: %v", err)
@@ -690,7 +722,9 @@ func (s *APIServer) handleGetInstanceData(w http.ResponseWriter, r *http.Request
 // @Failure 500 {object} map[string]string
 // @Router /nodes [get]
 func (s *APIServer) handleListNodes(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx, cancel := s.getRequestContext(r, 30*time.Second)
+	defer cancel()
+
 	nodes, err := s.storage.GetAllNodes(ctx)
 	if err != nil {
 		log.Printf("[Centro REST] Failed to get nodes: %v", err)
@@ -729,10 +763,12 @@ func (s *APIServer) handleListNodes(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string
 // @Router /nodes/{id} [get]
 func (s *APIServer) handleGetNode(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.getRequestContext(r, 10*time.Second)
+	defer cancel()
+
 	vars := mux.Vars(r)
 	nodeID := vars["id"]
 
-	ctx := context.Background()
 	node, err := s.storage.GetNode(ctx, nodeID)
 	if err != nil {
 		log.Printf("[Centro REST] Failed to get node: %v", err)
@@ -768,10 +804,12 @@ func (s *APIServer) handleGetNode(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string
 // @Router /nodes/{id}/health [get]
 func (s *APIServer) handleNodeHealth(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.getRequestContext(r, 10*time.Second)
+	defer cancel()
+
 	vars := mux.Vars(r)
 	nodeID := vars["id"]
 
-	ctx := context.Background()
 	node, err := s.storage.GetNode(ctx, nodeID)
 	if err != nil {
 		log.Printf("[Centro REST] Failed to get node: %v", err)
@@ -809,7 +847,8 @@ func (s *APIServer) handleNodeHealth(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string
 // @Router /stats [get]
 func (s *APIServer) handleStats(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx, cancel := s.getRequestContext(r, 15*time.Second)
+	defer cancel()
 
 	nodes, err := s.storage.GetAllNodes(ctx)
 	if err != nil {
