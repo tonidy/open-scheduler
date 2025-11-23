@@ -42,19 +42,33 @@ func (s *CleanupService) Execute(ctx context.Context, nodeID string, token strin
 	log.Printf("[CleanupService] Found %d instances", len(instances))
 
 	stoppedCount := 0
+	runningCount := 0
 	cleanedCount := 0
 
-	// Filter for stopped instances and stop them
+	// Stop running instances and clean up stopped ones
 	for _, instance := range instances {
-		if instance.Status == "stopped" ||
+		if instance.Status == "running" {
+			runningCount++
+			log.Printf("[CleanupService] Found running instance: %s (Status: %s)", instance.InstanceId, instance.Status)
+
+			// Stop the running instance (this will also remove it based on the StopInstance implementation)
+			err := s.driver.StopInstance(ctx, instance.InstanceId)
+			if err != nil {
+				log.Printf("[CleanupService] Failed to stop running instance %s: %v", instance.InstanceId, err)
+				continue
+			}
+
+			cleanedCount++
+			log.Printf("[CleanupService] Successfully stopped instance: %s", instance.InstanceId)
+		} else if instance.Status == "stopped" ||
 			instance.Status == "exited" {
 			stoppedCount++
 			log.Printf("[CleanupService] Found stopped instance: %s (Status: %s)", instance.InstanceId, instance.Status)
 
-			// Stop the instance (this will also remove it based on the StopInstance implementation)
+			// Clean up the stopped instance (remove it)
 			err := s.driver.StopInstance(ctx, instance.InstanceId)
 			if err != nil {
-				log.Printf("[CleanupService] Failed to stop instance %s: %v", instance.InstanceId, err)
+				log.Printf("[CleanupService] Failed to clean up instance %s: %v", instance.InstanceId, err)
 				continue
 			}
 
@@ -63,6 +77,6 @@ func (s *CleanupService) Execute(ctx context.Context, nodeID string, token strin
 		}
 	}
 
-	log.Printf("[CleanupService] Cleanup complete - Found: %d stopped, Cleaned: %d", stoppedCount, cleanedCount)
+	log.Printf("[CleanupService] Cleanup complete - Running: %d, Stopped: %d, Cleaned: %d", runningCount, stoppedCount, cleanedCount)
 	return nil
 }

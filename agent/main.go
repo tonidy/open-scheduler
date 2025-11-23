@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/open-scheduler/agent/commands"
 	agentgrpc "github.com/open-scheduler/agent/grpc"
@@ -70,9 +71,25 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
+	// Variable to store cleanup service for shutdown
+	var cleanupSvc *cleanupservice.CleanupService
+
 	go func() {
 		<-sigChan
-		log.Println("Received shutdown signal, cleaning up...")
+		log.Println("Received shutdown signal, starting graceful shutdown...")
+
+		// Execute cleanup to stop all running instances
+		if cleanupSvc != nil {
+			log.Println("Stopping all running instances...")
+			// Create a timeout context for cleanup (30 seconds max)
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			if err := cleanupSvc.Execute(cleanupCtx, nodeID, token); err != nil {
+				log.Printf("Cleanup error: %v", err)
+			}
+			cleanupCancel()
+			log.Println("Cleanup completed, shutting down agent...")
+		}
+
 		cancel()
 	}()
 
@@ -101,10 +118,14 @@ func main() {
 		log.Fatalf("Failed to create SetInstanceDataService: %v", err)
 	}
 
-	cleanupService, err := cleanupservice.NewCleanupService(driver, nodeID)
+	var cleanupService *cleanupservice.CleanupService
+	cleanupService, err = cleanupservice.NewCleanupService(driver, nodeID)
 	if err != nil {
 		log.Fatalf("Failed to create CleanupService: %v", err)
 	}
+
+	// Assign to cleanup service variable for graceful shutdown
+	cleanupSvc = cleanupService
 
 	executor.Register(commands.NewHeartbeatCommand(grpcClient))
 	executor.Register(commands.NewGetJobCommand(grpcClient, instanceService))
