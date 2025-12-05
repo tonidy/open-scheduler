@@ -12,7 +12,7 @@ import (
 )
 
 type Driver interface {
-	Run(ctx context.Context, job *pb.Job) (string, error)
+	Run(ctx context.Context, deployment *pb.Deployment) (string, error)
 	StopInstance(ctx context.Context, instanceID string) error
 	RestartInstance(ctx context.Context, instanceID string) error
 	GetInstanceStatus(ctx context.Context, instanceID string) (string, error)

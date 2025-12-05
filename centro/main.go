@@ -102,8 +102,8 @@ func main() {
 
 		for range ticker.C {
 			nodeCount := centroServer.GetNodeCount()
-			queued, active, completed := centroServer.GetJobStats()
-			log.Printf("[Centro] Status - Nodes: %d, Jobs (Queued: %d, Active: %d, Completed: %d)",
+			queued, active, completed := centroServer.GetDeploymentStats()
+			log.Printf("[Centro] Status - Nodes: %d, Deployments (Queued: %d, Active: %d, Completed: %d)",
 				nodeCount, queued, active, completed)
 		}
 	}()

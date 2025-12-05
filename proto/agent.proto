@@ -20,35 +20,47 @@ message HeartbeatResponse {
   string response_message = 2;
 }
 
-// Request from Agent to get an available job from Centro
-message GetJobRequest {
+// Request from Agent to get an available deployment from Centro
+message GetDeploymentRequest {
   string node_id = 1;
 }
 
-// Job specification - simplified model where each job runs exactly one instance (container or VM)
-message Job {
-  string job_id = 1;
-  string job_name = 2;
-  string job_type = 3;              // Job type: "service", "batch", etc.
-  repeated string selected_clusters = 4; // Clusters where this job can run (empty = any cluster)
+// Deployment specification - supports template.yaml deployment spec
+message Deployment {
+  string deployment_id = 1;
+  string deployment_name = 2;
+  string deployment_type = 3;              // Deployment type: "service", "batch", etc.
+  repeated string selected_clusters = 4; // Clusters where this deployment can run (empty = any cluster)
 
-  // Job execution configuration (merged from Task)
+  // Deployment execution configuration (merged from Task)
   string driver_type = 5;        // Driver type: "podman", "incus", "exec"
-  string command = 6;             // Command or script to execute
+  string command = 6;             // Command or script to execute (legacy string format)
+  repeated string command_array = 25; // Command as array (e.g., ["nginx", "-g", "daemon off;"])
   InstanceSpec instance_config = 7;  // Instance configuration (for containers, VMs, etc.)
   map<string, string> environment_variables = 8;
   Resources resource_requirements = 9;
   repeated Volume volume_mounts = 10;
   string workload_type = 11;       // Workload type: "container", "vm", "process"
-  map<string, string> job_metadata = 12; // Job-level metadata
+  map<string, string> deployment_metadata = 12; // Deployment-level metadata
   
-  // Job retry and failure tracking
-  int32 retry_count = 13;          // Number of times this job has been retried
+  // Deployment retry and failure tracking
+  int32 retry_count = 13;          // Number of times this deployment has been retried
   int32 max_retries = 14;          // Maximum number of retries allowed (0 = no limit)
   int64 last_retry_time = 15;      // Unix timestamp of last retry attempt
+  
+  // New fields for template.yaml support
+  int32 replicas = 16;              // Number of instances to run (default: 1)
+  Placement placement = 17;        // Placement constraints and strategy
+  string working_dir = 18;         // Working directory for the instance
+  repeated PortMapping ports = 19; // Port mappings (host:container:protocol)
+  SecuritySettings security = 20;   // Security settings (privileged, capabilities, etc.)
+  HealthCheck health_check = 21;   // Health check configuration
+  RestartPolicy restart_policy = 22; // Restart policy for failed instances
+  repeated NetworkReference networks = 23; // Network assignments
+  string instance_type = 24;       // Instance type: "virtual-machine", "container" (for Incus)
 }
 
-// Resource requirements and limits for job execution
+// Resource requirements and limits for deployment execution
 message Resources {
   int64 memory_limit_mb = 1;      // Maximum memory in MB
   int64 memory_reserved_mb = 2;   // Reserved/guaranteed memory in MB
@@ -61,6 +73,62 @@ message Volume {
   string source_path = 1;      // Path on the host system
   string target_path = 2;      // Path inside the instance/VM
   bool read_only = 3;          // Whether the mount is read-only
+  string type = 4;             // Mount type: "bind", "volume", etc.
+}
+
+// Placement constraints and strategy for deployment scheduling
+message Placement {
+  repeated string constraints = 1;  // Placement constraints (e.g., "node.driver in [podman, containerd]", "node.label.zone == us-east")
+  string strategy = 2;              // Placement strategy: "spread", "pack", "random"
+}
+
+// Port mapping configuration
+message PortMapping {
+  int32 host_port = 1;         // Port on the host
+  int32 container_port = 2;    // Port inside the container/instance
+  string protocol = 3;         // Protocol: "tcp", "udp"
+}
+
+// Security settings for containers/instances
+message SecuritySettings {
+  bool privileged = 1;         // Whether to run in privileged mode
+  repeated string capabilities_add = 2;  // Capabilities to add (e.g., ["NET_BIND_SERVICE"])
+  repeated string capabilities_drop = 3; // Capabilities to drop (e.g., ["ALL"])
+  bool read_only_root_filesystem = 4;    // Whether root filesystem is read-only
+}
+
+// Health check configuration
+message HealthCheck {
+  repeated string test = 1;    // Health check test command (e.g., ["CMD-SHELL", "curl -f http://localhost/ || exit 1"])
+  string interval = 2;         // Interval between health checks (e.g., "30s")
+  string timeout = 3;          // Timeout for health check (e.g., "5s")
+  int32 retries = 4;           // Number of consecutive failures before marking unhealthy
+  string start_period = 5;     // Grace period before health checks start (e.g., "5s")
+}
+
+// Restart policy for instances
+message RestartPolicy {
+  string condition = 1;        // Restart condition: "no", "always", "on-failure", "unless-stopped"
+  int32 max_attempts = 2;      // Maximum restart attempts (0 = unlimited)
+}
+
+// Network reference for deployment network assignment
+message NetworkReference {
+  string name = 1;             // Network name (e.g., "backend-net")
+}
+
+// Image source configuration for pulling images
+message ImageSource {
+  string alias = 1;            // Image alias (e.g., "ubuntu/22.04")
+  string server = 2;           // Image server URL (e.g., "images.linuxcontainers.org")
+  string mode = 3;             // Pull mode: "pull", "local"
+}
+
+// Device configuration for instances (network interfaces, etc.)
+message Device {
+  string name = 1;             // Device name (e.g., "eth0")
+  string type = 2;             // Device type (e.g., "nic")
+  map<string, string> properties = 3; // Device-specific properties (e.g., network: "incusbr0")
 }
 
 // Instance specification for containerized or VM workloads
@@ -69,19 +137,22 @@ message InstanceSpec {
   repeated string entrypoint = 2;    // Entrypoint command to run in the instance
   repeated string arguments = 3;     // Arguments for the entrypoint command
   map<string, string> driver_options = 4; // Driver-specific configuration options
+  ImageSource image_source = 5;      // Image source configuration (server, alias, mode)
+  string user_data = 6;              // User data/cloud-init configuration (for VMs)
+  repeated Device devices = 7;        // Device configurations (network interfaces, etc.)
 }
 
-message GetJobResponse {
-  bool job_available = 1;       // Whether a job is available for execution
-  Job job = 2;
+message GetDeploymentResponse {
+  bool deployment_available = 1;       // Whether a deployment is available for execution
+  Deployment deployment = 2;
   string response_message = 3;
 }
 
-// Status update from Agent to Centro about job execution
+// Status update from Agent to Centro about deployment execution
 message UpdateStatusRequest {
   string node_id = 1;
-  string job_id = 2;
-  string job_status = 3;        // Job status: "pending", "running", "completed", "failed"
+  string deployment_id = 2;
+  string deployment_status = 3;        // Deployment status: "pending", "running", "completed", "failed"
   string status_message = 4;    // Detailed status message or error description
   int64 timestamp = 5;
 }
@@ -112,7 +183,7 @@ message InstanceData {
 
 message SetInstanceDataRequest {
   string node_id = 1;              // Node ID where instance is running
-  string job_id = 2;               // Job ID associated with the instance
+  string deployment_id = 2;               // Deployment ID associated with the instance
   InstanceData instance_data = 3;  // Instance inspection data
   int64 timestamp = 4;             // Timestamp when data was collected
 }
@@ -127,10 +198,10 @@ service CentroSchedulerService {
   // Agent sends periodic heartbeat to report node health and available resources
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 
-  // Agent requests an available job from Centro for execution
-  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+  // Agent requests an available deployment from Centro for execution
+  rpc GetDeployment(GetDeploymentRequest) returns (GetDeploymentResponse);
 
-  // Agent sends job execution status updates to Centro
+  // Agent sends deployment execution status updates to Centro
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse);
 
   // Agent sends instance inspection data after instance is running

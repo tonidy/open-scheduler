@@ -1,5 +1,52 @@
 basePath: /api/v1
 definitions:
+  rest.DeviceRequest:
+    properties:
+      name:
+        example: eth0
+        type: string
+      properties:
+        additionalProperties:
+          type: string
+        type: object
+      type:
+        example: nic
+        type: string
+    type: object
+  rest.HealthCheckRequest:
+    properties:
+      interval:
+        example: 30s
+        type: string
+      retries:
+        example: 3
+        type: integer
+      start_period:
+        example: 5s
+        type: string
+      test:
+        example:
+        - CMD-SHELL
+        - curl -f http://localhost/ || exit 1
+        items:
+          type: string
+        type: array
+      timeout:
+        example: 5s
+        type: string
+    type: object
+  rest.ImageSourceRequest:
+    properties:
+      alias:
+        example: ubuntu/22.04
+        type: string
+      mode:
+        example: pull
+        type: string
+      server:
+        example: images.linuxcontainers.org
+        type: string
+    type: object
   rest.InstanceSpecRequest:
     properties:
       args:
@@ -14,13 +61,21 @@ definitions:
         items:
           type: string
         type: array
+      devices:
+        items:
+          $ref: '#/definitions/rest.DeviceRequest'
+        type: array
       image:
         example: docker.io/library/alpine:latest
         type: string
+      image_source:
+        $ref: '#/definitions/rest.ImageSourceRequest'
       options:
         additionalProperties:
           type: string
         type: object
+      user_data:
+        type: string
     type: object
   rest.LoginRequest:
     properties:
@@ -40,6 +95,31 @@ definitions:
       username:
         type: string
     type: object
+  rest.PlacementRequest:
+    properties:
+      constraints:
+        example:
+        - node.driver in [podman
+        - ' containerd]'
+        items:
+          type: string
+        type: array
+      strategy:
+        example: spread
+        type: string
+    type: object
+  rest.PortMappingRequest:
+    properties:
+      container_port:
+        example: 80
+        type: integer
+      host_port:
+        example: 8080
+        type: integer
+      protocol:
+        example: tcp
+        type: string
+    type: object
   rest.ResourcesRequest:
     properties:
       cpu:
@@ -55,31 +135,93 @@ definitions:
         example: 256
         type: integer
     type: object
-  rest.SubmitJobRequest:
+  rest.RestartPolicyRequest:
+    properties:
+      condition:
+        example: on-failure
+        type: string
+      max_attempts:
+        example: 3
+        type: integer
+    type: object
+  rest.SecurityRequest:
+    properties:
+      capabilities_add:
+        example:
+        - NET_BIND_SERVICE
+        items:
+          type: string
+        type: array
+      capabilities_drop:
+        example:
+        - ALL
+        items:
+          type: string
+        type: array
+      privileged:
+        example: false
+        type: boolean
+      read_only_root_filesystem:
+        example: true
+        type: boolean
+    type: object
+  rest.SubmitDeploymentRequest:
     properties:
       command:
         example: echo 'Hello World'
         type: string
+      command_array:
+        example:
+        - nginx
+        - -g
+        - daemon off;
+        items:
+          type: string
+        type: array
+      deployment_id:
+        example: "123"
+        type: string
+      deployment_name:
+        example: web-server-deployment
+        type: string
+      deployment_type:
+        example: service
+        type: string
       driver:
         example: podman
         type: string
+      health_check:
+        $ref: '#/definitions/rest.HealthCheckRequest'
       instance_config:
         $ref: '#/definitions/rest.InstanceSpecRequest'
-      job_id:
-        example: "123"
-        type: string
-      job_name:
-        example: web-server-job
-        type: string
-      job_type:
-        example: service
+      instance_type:
+        example: virtual-machine
         type: string
       meta:
         additionalProperties:
           type: string
         type: object
+      networks:
+        example:
+        - backend-net
+        items:
+          type: string
+        type: array
+      placement:
+        $ref: '#/definitions/rest.PlacementRequest'
+      ports:
+        items:
+          $ref: '#/definitions/rest.PortMappingRequest'
+        type: array
+      replicas:
+        example: 2
+        type: integer
       resources:
         $ref: '#/definitions/rest.ResourcesRequest'
+      restart_policy:
+        $ref: '#/definitions/rest.RestartPolicyRequest'
+      security:
+        $ref: '#/definitions/rest.SecurityRequest'
       selected_clusters:
         example:
         - dc1
@@ -91,6 +233,9 @@ definitions:
         items:
           $ref: '#/definitions/rest.VolumeRequest'
         type: array
+      working_dir:
+        example: /usr/share/nginx/html
+        type: string
       workload_type:
         example: container
         type: string
@@ -106,6 +251,9 @@ definitions:
       read_only:
         example: false
         type: boolean
+      type:
+        example: bind
+        type: string
     type: object
 host: localhost:8080
 info:
@@ -155,6 +303,161 @@ paths:
       summary: Login to get JWT token
       tags:
       - Authentication
+  /deployments:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all deployments with optional status filter
+      parameters:
+      - description: Filter by status (queued, pending, completed, failed)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all deployments
+      tags:
+      - Deployments
+    post:
+      consumes:
+      - application/json
+      description: Create and submit a new deployment to the scheduler
+      parameters:
+      - description: Deployment details
+        in: body
+        name: deployment
+        required: true
+        schema:
+          $ref: '#/definitions/rest.SubmitDeploymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Submit a new deployment
+      tags:
+      - Deployments
+  /deployments/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific deployment
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get deployment details
+      tags:
+      - Deployments
+  /deployments/{id}/events:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve events for a specific deployment
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get deployment events
+      tags:
+      - Deployments
+  /deployments/{id}/status:
+    get:
+      consumes:
+      - application/json
+      description: Get the current status of a specific deployment
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get deployment status
+      tags:
+      - Deployments
   /instances:
     get:
       consumes:
@@ -181,7 +484,7 @@ paths:
       - Instances
   /instances/{id}:
     get:
-      description: Retrieves the instance data associated with a specific job
+      description: Retrieves the instance data associated with a specific deployment
       parameters:
       - description: Instance ID
         in: path
@@ -210,164 +513,9 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Get instance data for a job
+      summary: Get instance data for a deployment
       tags:
       - Instances
-  /jobs:
-    get:
-      consumes:
-      - application/json
-      description: Get a list of all jobs with optional status filter
-      parameters:
-      - description: Filter by status (queued, pending, completed, failed)
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: List all jobs
-      tags:
-      - Jobs
-    post:
-      consumes:
-      - application/json
-      description: Create and submit a new job to the scheduler
-      parameters:
-      - description: Job details
-        in: body
-        name: job
-        required: true
-        schema:
-          $ref: '#/definitions/rest.SubmitJobRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Submit a new job
-      tags:
-      - Jobs
-  /jobs/{id}:
-    get:
-      consumes:
-      - application/json
-      description: Get detailed information about a specific job
-      parameters:
-      - description: Job ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Get job details
-      tags:
-      - Jobs
-  /jobs/{id}/events:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve events for a specific job
-      parameters:
-      - description: Job ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Get job events
-      tags:
-      - Jobs
-  /jobs/{id}/status:
-    get:
-      consumes:
-      - application/json
-      description: Get the current status of a specific job
-      parameters:
-      - description: Job ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Get job status
-      tags:
-      - Jobs
   /nodes:
     get:
       consumes:

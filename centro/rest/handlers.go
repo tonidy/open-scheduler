@@ -41,11 +41,11 @@ func (s *APIServer) setupRoutes() {
 	protected := api.PathPrefix("").Subrouter()
 	protected.Use(JWTAuthMiddleware)
 
-	protected.HandleFunc("/jobs", s.handleListJobs).Methods("GET")
-	protected.HandleFunc("/jobs", s.handleSubmitJob).Methods("POST")	
-	protected.HandleFunc("/jobs/{id}", s.handleGetJob).Methods("GET")
-	protected.HandleFunc("/jobs/{id}/status", s.handleGetJobStatus).Methods("GET")
-	protected.HandleFunc("/jobs/{id}/events", s.handleGetJobEvents).Methods("GET")
+	protected.HandleFunc("/deployments", s.handleListDeployments).Methods("GET")
+	protected.HandleFunc("/deployments", s.handleSubmitDeployment).Methods("POST")
+	protected.HandleFunc("/deployments/{id}", s.handleGetDeployment).Methods("GET")
+	protected.HandleFunc("/deployments/{id}/status", s.handleGetDeploymentStatus).Methods("GET")
+	protected.HandleFunc("/deployments/{id}/events", s.handleGetDeploymentEvents).Methods("GET")
 	protected.HandleFunc("/instances", s.handleListInstances).Methods("GET")
 	protected.HandleFunc("/instances/{id}", s.handleGetInstanceData).Methods("GET")
 
@@ -115,24 +115,24 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	respondWithError(w, http.StatusUnauthorized, "Invalid credentials")
 }
 
-// handleListJobs godoc
-// @Summary List all jobs
-// @Description Get a list of all jobs with optional status filter
-// @Tags Jobs
+// handleListDeployments godoc
+// @Summary List all deployments
+// @Description Get a list of all deployments with optional status filter
+// @Tags Deployments
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param status query string false "Filter by status (queued, pending, completed, failed)"
 // @Success 200 {object} map[string]interface{}
 // @Failure 500 {object} map[string]string
-// @Router /jobs [get]
-func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
+// @Router /deployments [get]
+func (s *APIServer) handleListDeployments(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	statusFilter := r.URL.Query().Get("status")
 
 	response := make(map[string]interface{})
 
-	// Queued jobs - waiting in queue to be picked up
+	// Queued deployments - waiting in queue to be picked up
 	if statusFilter == "" || statusFilter == "queued" {
 		queueLength, err := s.storage.GetQueueLength(ctx)
 		if err != nil {
@@ -143,116 +143,139 @@ func (s *APIServer) handleListJobs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if statusFilter == "" || statusFilter == "queued" {
-		queueJobs, err := s.storage.GetQueueJobs(ctx)
+		queueDeployments, err := s.storage.GetQueueDeployments(ctx)
 		if err != nil {
-			log.Printf("[Centro REST] Failed to get queue jobs: %v", err)
+			log.Printf("[Centro REST] Failed to get queue deployments: %v", err)
 		} else {
-			response["queued_jobs"] = queueJobs
+			// Format queued deployments to match expected structure (same format as active deployments)
+			formattedQueue := make([]map[string]interface{}, 0, len(queueDeployments))
+			for _, deployment := range queueDeployments {
+				formattedQueue = append(formattedQueue, map[string]interface{}{
+					"deployment_id": deployment.DeploymentId,
+					"node_id":       "",
+					"status":        "queued",
+					"detail":        fmt.Sprintf("Deployment queued (attempt %d/%d)", deployment.RetryCount, deployment.MaxRetries),
+					"updated_at":    nil,
+					"claimed_at":    nil,
+					"deployment":    deployment,
+				})
+			}
+			response["queued_deployments"] = formattedQueue
 		}
 	}
 
-	// Pending jobs - claimed by agent but not completed yet (assigned/running)
+	// Pending deployments - claimed by agent but not completed yet (assigned/running)
 	if statusFilter == "" || statusFilter == "active" {
-		activeJobs, err := s.storage.GetAllActiveJobs(ctx)
+		activeDeployments, err := s.storage.GetAllActiveDeployments(ctx)
 		if err != nil {
-			log.Printf("[Centro REST] Failed to get active jobs: %v", err)
+			log.Printf("[Centro REST] Failed to get active deployments: %v", err)
 		} else {
-			jobs := make([]map[string]interface{}, 0, len(activeJobs))
-			for jobID, status := range activeJobs {
-				jobs = append(jobs, map[string]interface{}{
-					"job_id":     jobID,
+			deployments := make([]map[string]interface{}, 0, len(activeDeployments))
+			for deploymentID, status := range activeDeployments {
+				deployments = append(deployments, map[string]interface{}{
+					"deployment_id":     deploymentID,
 					"node_id":    status.NodeID,
 					"status":     status.Status,
 					"detail":     status.Detail,
 					"updated_at": status.UpdatedAt,
 					"claimed_at": status.ClaimedAt,
-					"job":        status.Job,
+					"deployment":        status.Deployment,
 				})
 			}
-			response["active_jobs"] = jobs
+			response["active_deployments"] = deployments
 		}
 	}
 
 	// Get all history to filter by status
-	allHistory, err := s.storage.GetAllJobHistory(ctx)
+	allHistory, err := s.storage.GetAllDeploymentHistory(ctx)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get job history: %v", err)
+		log.Printf("[Centro REST] Failed to get deployment history: %v", err)
 	} else {
-		// Completed jobs - successfully finished
+		// Completed deployments - successfully finished
 		if statusFilter == "" || statusFilter == "completed" {
-			completedJobs := make([]map[string]interface{}, 0)
-			for jobID, status := range allHistory {
+			completedDeployments := make([]map[string]interface{}, 0)
+			for deploymentID, status := range allHistory {
 				if status.Status == "completed" {
-					completedJobs = append(completedJobs, map[string]interface{}{
-						"job_id":     jobID,
+					completedDeployments = append(completedDeployments, map[string]interface{}{
+						"deployment_id":     deploymentID,
 						"node_id":    status.NodeID,
 						"status":     status.Status,
 						"detail":     status.Detail,
 						"updated_at": status.UpdatedAt,
 						"claimed_at": status.ClaimedAt,
-						"job":        status.Job,
+						"deployment":        status.Deployment,
 					})
 				}
 			}
-			response["completed_jobs"] = completedJobs
-			response["completed_count"] = len(completedJobs)
+			response["completed_deployments"] = completedDeployments
+			response["completed_count"] = len(completedDeployments)
 		}
 
-		// Failed jobs - permanently failed (exceeded retries)
+		// Failed deployments - permanently failed (exceeded retries)
 		if statusFilter == "" || statusFilter == "failed" {
-			failedJobs := make([]map[string]interface{}, 0)
-			for jobID, status := range allHistory {
+			failedDeployments := make([]map[string]interface{}, 0)
+			for deploymentID, status := range allHistory {
 				if status.Status == "failed" {
-					failedJobs = append(failedJobs, map[string]interface{}{
-						"job_id":     jobID,
+					failedDeployments = append(failedDeployments, map[string]interface{}{
+						"deployment_id":     deploymentID,
 						"node_id":    status.NodeID,
 						"status":     "failed_permanent",
 						"detail":     status.Detail,
 						"updated_at": status.UpdatedAt,
 						"claimed_at": status.ClaimedAt,
-						"job":        status.Job,
+						"deployment":        status.Deployment,
 					})
 				}
 			}
 
-			// Also include jobs in failed queue (pending retry)
-			failedQueueJobs, err := s.storage.GetAllFailedJobs(ctx)
+			// Also include deployments in failed queue (pending retry)
+			failedQueueDeployments, err := s.storage.GetAllFailedDeployments(ctx)
 			if err != nil {
-				log.Printf("[Centro REST] Failed to get failed queue jobs: %v", err)
+				log.Printf("[Centro REST] Failed to get failed queue deployments: %v", err)
 			} else {
-				for _, job := range failedQueueJobs {
-					failedJobs = append(failedJobs, map[string]interface{}{
-						"job_id":     job.JobId,
+				for _, deployment := range failedQueueDeployments {
+					failedDeployments = append(failedDeployments, map[string]interface{}{
+						"deployment_id":     deployment.DeploymentId,
 						"node_id":    "",
 						"status":     "failed_retrying",
-						"detail":     fmt.Sprintf("Job failed, pending retry (attempt %d/%d)", job.RetryCount, job.MaxRetries),
+						"detail":     fmt.Sprintf("Deployment failed, pending retry (attempt %d/%d)", deployment.RetryCount, deployment.MaxRetries),
 						"updated_at": nil,
 						"claimed_at": nil,
-						"job":        job,
+						"deployment":        deployment,
 					})
 				}
 			}
 
-			response["failed_jobs"] = failedJobs
-			response["failed_count"] = len(failedJobs)
+			response["failed_deployments"] = failedDeployments
+			response["failed_count"] = len(failedDeployments)
 		}
 	}
 
 	respondWithJSON(w, http.StatusOK, response)
 }
 
-type SubmitJobRequest struct {
-	JobId            string               `json:"job_id" example:"123"`
-	JobName          string               `json:"job_name" example:"web-server-job"`
-	JobType          string               `json:"job_type" example:"service"`
-	SelectedClusters []string             `json:"selected_clusters" example:"dc1,dc2"`
-	Meta             map[string]string    `json:"meta"`
-	Driver           string               `json:"driver" example:"podman"`
-	WorkloadType     string               `json:"workload_type" example:"container"`
-	Command          string               `json:"command" example:"echo 'Hello World'"`
-	InstanceConfig   *InstanceSpecRequest `json:"instance_config,omitempty"`
-	Resources        *ResourcesRequest    `json:"resources,omitempty"`
-	Volumes          []VolumeRequest      `json:"volumes,omitempty"`
+type SubmitDeploymentRequest struct {
+	DeploymentId            string                `json:"deployment_id" example:"123"`
+	DeploymentName          string                `json:"deployment_name" example:"web-server-deployment"`
+	DeploymentType          string                `json:"deployment_type" example:"service"`
+	SelectedClusters []string              `json:"selected_clusters" example:"dc1,dc2"`
+	Meta             map[string]string     `json:"meta"`
+	Driver           string                `json:"driver" example:"podman"`
+	WorkloadType     string                `json:"workload_type" example:"container"`
+	Command          string                `json:"command" example:"echo 'Hello World'"`
+	CommandArray     []string              `json:"command_array,omitempty" example:"nginx,-g,daemon off;"`
+	InstanceConfig   *InstanceSpecRequest  `json:"instance_config,omitempty"`
+	Resources        *ResourcesRequest     `json:"resources,omitempty"`
+	Volumes          []VolumeRequest       `json:"volumes,omitempty"`
+	Replicas         *int32                `json:"replicas,omitempty" example:"2"`
+	Placement        *PlacementRequest     `json:"placement,omitempty"`
+	WorkingDir       string                `json:"working_dir,omitempty" example:"/usr/share/nginx/html"`
+	Ports            []PortMappingRequest  `json:"ports,omitempty"`
+	Security         *SecurityRequest      `json:"security,omitempty"`
+	HealthCheck      *HealthCheckRequest   `json:"health_check,omitempty"`
+	RestartPolicy    *RestartPolicyRequest `json:"restart_policy,omitempty"`
+	Networks         []string              `json:"networks,omitempty" example:"backend-net"`
+	InstanceType     string                `json:"instance_type,omitempty" example:"virtual-machine"`
 }
 
 type ResourcesRequest struct {
@@ -266,44 +289,91 @@ type VolumeRequest struct {
 	HostPath     string `json:"host_path" example:"/data/app"`
 	InstancePath string `json:"instance_path" example:"/usr/share/nginx/html"`
 	ReadOnly     bool   `json:"read_only,omitempty" example:"false"`
+	Type         string `json:"type,omitempty" example:"bind"`
 }
 
 type InstanceSpecRequest struct {
-	Image   string            `json:"image" example:"docker.io/library/alpine:latest"`
-	Command []string          `json:"command,omitempty" example:""`
-	Args    []string          `json:"args,omitempty" example:""`
-	Options map[string]string `json:"options,omitempty"`
+	Image       string              `json:"image" example:"docker.io/library/alpine:latest"`
+	Command     []string            `json:"command,omitempty" example:""`
+	Args        []string            `json:"args,omitempty" example:""`
+	Options     map[string]string   `json:"options,omitempty"`
+	ImageSource *ImageSourceRequest `json:"image_source,omitempty"`
+	UserData    string              `json:"user_data,omitempty"`
+	Devices     []DeviceRequest     `json:"devices,omitempty"`
 }
 
-// handleSubmitJob godoc
-// @Summary Submit a new job
-// @Description Create and submit a new job to the scheduler
-// @Tags Jobs
+type PlacementRequest struct {
+	Constraints []string `json:"constraints,omitempty" example:"node.driver in [podman, containerd]"`
+	Strategy    string   `json:"strategy,omitempty" example:"spread"`
+}
+
+type PortMappingRequest struct {
+	HostPort      int32  `json:"host_port" example:"8080"`
+	ContainerPort int32  `json:"container_port" example:"80"`
+	Protocol      string `json:"protocol" example:"tcp"`
+}
+
+type SecurityRequest struct {
+	Privileged             bool     `json:"privileged,omitempty" example:"false"`
+	CapabilitiesAdd        []string `json:"capabilities_add,omitempty" example:"NET_BIND_SERVICE"`
+	CapabilitiesDrop       []string `json:"capabilities_drop,omitempty" example:"ALL"`
+	ReadOnlyRootFilesystem bool     `json:"read_only_root_filesystem,omitempty" example:"true"`
+}
+
+type HealthCheckRequest struct {
+	Test        []string `json:"test,omitempty" example:"CMD-SHELL,curl -f http://localhost/ || exit 1"`
+	Interval    string   `json:"interval,omitempty" example:"30s"`
+	Timeout     string   `json:"timeout,omitempty" example:"5s"`
+	Retries     int32    `json:"retries,omitempty" example:"3"`
+	StartPeriod string   `json:"start_period,omitempty" example:"5s"`
+}
+
+type RestartPolicyRequest struct {
+	Condition   string `json:"condition" example:"on-failure"`
+	MaxAttempts int32  `json:"max_attempts,omitempty" example:"3"`
+}
+
+type ImageSourceRequest struct {
+	Alias  string `json:"alias,omitempty" example:"ubuntu/22.04"`
+	Server string `json:"server,omitempty" example:"images.linuxcontainers.org"`
+	Mode   string `json:"mode,omitempty" example:"pull"`
+}
+
+type DeviceRequest struct {
+	Name       string            `json:"name" example:"eth0"`
+	Type       string            `json:"type" example:"nic"`
+	Properties map[string]string `json:"properties,omitempty"`
+}
+
+// handleSubmitDeployment godoc
+// @Summary Submit a new deployment
+// @Description Create and submit a new deployment to the scheduler
+// @Tags Deployments
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param job body SubmitJobRequest true "Job details"
+// @Param deployment body SubmitDeploymentRequest true "Deployment details"
 // @Success 201 {object} map[string]interface{}
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /jobs [post]
-func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
-	var req SubmitJobRequest
+// @Router /deployments [post]
+func (s *APIServer) handleSubmitDeployment(w http.ResponseWriter, r *http.Request) {
+	var req SubmitDeploymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	if req.JobName == "" {
-		respondWithError(w, http.StatusBadRequest, "Job name is required")
+	if req.DeploymentName == "" {
+		respondWithError(w, http.StatusBadRequest, "Deployment name is required")
 		return
 	}
-	jobID := uuid.New().String()
+	deploymentID := uuid.New().String()
 
-	job := &pb.Job{
-		JobId:            jobID,
-		JobName:          req.JobName,
-		JobType:          req.JobType,
+	deployment := &pb.Deployment{
+		DeploymentId:            deploymentID,
+		DeploymentName:          req.DeploymentName,
+		DeploymentType:          req.DeploymentType,
 		SelectedClusters: req.SelectedClusters,
 		DriverType:       req.Driver,
 		WorkloadType:     req.WorkloadType,
@@ -312,16 +382,126 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		MaxRetries:       3, // Default: retry up to 3 times
 		LastRetryTime:    0,
 	}
+
+	// Support command_array if provided
+	if len(req.CommandArray) > 0 {
+		deployment.CommandArray = req.CommandArray
+	}
+
+	// Replicas
+	if req.Replicas != nil {
+		deployment.Replicas = *req.Replicas
+	} else {
+		deployment.Replicas = 1 // Default to 1 replica
+	}
+
+	// Placement
+	if req.Placement != nil {
+		deployment.Placement = &pb.Placement{
+			Constraints: req.Placement.Constraints,
+			Strategy:    req.Placement.Strategy,
+		}
+	}
+
+	// Working directory
+	if req.WorkingDir != "" {
+		deployment.WorkingDir = req.WorkingDir
+	}
+
+	// Ports
+	if len(req.Ports) > 0 {
+		deployment.Ports = make([]*pb.PortMapping, 0, len(req.Ports))
+		for _, p := range req.Ports {
+			deployment.Ports = append(deployment.Ports, &pb.PortMapping{
+				HostPort:      p.HostPort,
+				ContainerPort: p.ContainerPort,
+				Protocol:      p.Protocol,
+			})
+		}
+	}
+
+	// Security settings
+	if req.Security != nil {
+		deployment.Security = &pb.SecuritySettings{
+			Privileged:             req.Security.Privileged,
+			CapabilitiesAdd:        req.Security.CapabilitiesAdd,
+			CapabilitiesDrop:       req.Security.CapabilitiesDrop,
+			ReadOnlyRootFilesystem: req.Security.ReadOnlyRootFilesystem,
+		}
+	}
+
+	// Health check
+	if req.HealthCheck != nil {
+		deployment.HealthCheck = &pb.HealthCheck{
+			Test:        req.HealthCheck.Test,
+			Interval:    req.HealthCheck.Interval,
+			Timeout:     req.HealthCheck.Timeout,
+			Retries:     req.HealthCheck.Retries,
+			StartPeriod: req.HealthCheck.StartPeriod,
+		}
+	}
+
+	// Restart policy
+	if req.RestartPolicy != nil {
+		deployment.RestartPolicy = &pb.RestartPolicy{
+			Condition:   req.RestartPolicy.Condition,
+			MaxAttempts: req.RestartPolicy.MaxAttempts,
+		}
+	}
+
+	// Networks
+	if len(req.Networks) > 0 {
+		deployment.Networks = make([]*pb.NetworkReference, 0, len(req.Networks))
+		for _, netName := range req.Networks {
+			deployment.Networks = append(deployment.Networks, &pb.NetworkReference{
+				Name: netName,
+			})
+		}
+	}
+
+	// Instance type
+	if req.InstanceType != "" {
+		deployment.InstanceType = req.InstanceType
+	}
+
 	if req.InstanceConfig != nil {
-		job.InstanceConfig = &pb.InstanceSpec{
+		instSpec := &pb.InstanceSpec{
 			ImageName:     req.InstanceConfig.Image,
 			Entrypoint:    req.InstanceConfig.Command,
 			Arguments:     req.InstanceConfig.Args,
 			DriverOptions: req.InstanceConfig.Options,
 		}
+
+		// Image source
+		if req.InstanceConfig.ImageSource != nil {
+			instSpec.ImageSource = &pb.ImageSource{
+				Alias:  req.InstanceConfig.ImageSource.Alias,
+				Server: req.InstanceConfig.ImageSource.Server,
+				Mode:   req.InstanceConfig.ImageSource.Mode,
+			}
+		}
+
+		// User data
+		if req.InstanceConfig.UserData != "" {
+			instSpec.UserData = req.InstanceConfig.UserData
+		}
+
+		// Devices
+		if len(req.InstanceConfig.Devices) > 0 {
+			instSpec.Devices = make([]*pb.Device, 0, len(req.InstanceConfig.Devices))
+			for _, d := range req.InstanceConfig.Devices {
+				instSpec.Devices = append(instSpec.Devices, &pb.Device{
+					Name:       d.Name,
+					Type:       d.Type,
+					Properties: d.Properties,
+				})
+			}
+		}
+
+		deployment.InstanceConfig = instSpec
 	}
 	if req.Resources != nil {
-		job.ResourceRequirements = &pb.Resources{
+		deployment.ResourceRequirements = &pb.Resources{
 			MemoryLimitMb:    req.Resources.MemoryMB,
 			MemoryReservedMb: req.Resources.MemoryReserveMB,
 			CpuLimitCores:    req.Resources.CPU,
@@ -329,187 +509,191 @@ func (s *APIServer) handleSubmitJob(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(req.Volumes) > 0 {
-		job.VolumeMounts = make([]*pb.Volume, 0, len(req.Volumes))
+		deployment.VolumeMounts = make([]*pb.Volume, 0, len(req.Volumes))
 		for _, v := range req.Volumes {
-			job.VolumeMounts = append(job.VolumeMounts, &pb.Volume{
+			vol := &pb.Volume{
 				SourcePath: v.HostPath,
 				TargetPath: v.InstancePath,
 				ReadOnly:   v.ReadOnly,
-			})
+			}
+			if v.Type != "" {
+				vol.Type = v.Type
+			}
+			deployment.VolumeMounts = append(deployment.VolumeMounts, vol)
 		}
 	}
 	if req.Meta != nil {
-		job.JobMetadata = req.Meta
+		deployment.DeploymentMetadata = req.Meta
 	}
 
 	ctx := context.Background()
-	if err := s.storage.EnqueueJob(ctx, job); err != nil {
-		log.Printf("[Centro REST] Failed to enqueue job: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to submit job")
+	if err := s.storage.EnqueueDeployment(ctx, deployment); err != nil {
+		log.Printf("[Centro REST] Failed to enqueue deployment: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to submit deployment")
 		return
 	}
 
-	log.Printf("[Centro REST] Job submitted: %s (%s)", jobID, req.JobName)
+	log.Printf("[Centro REST] Deployment submitted: %s (%s)", deploymentID, req.DeploymentName)
 
 	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
-		"job_id":  jobID,
-		"message": "Job submitted successfully",
-		"job":     job,
+		"deployment_id":  deploymentID,
+		"message": "Deployment submitted successfully",
+		"deployment":     deployment,
 	})
 }
 
-// handleGetJob godoc
-// @Summary Get job details
-// @Description Get detailed information about a specific job
-// @Tags Jobs
+// handleGetDeployment godoc
+// @Summary Get deployment details
+// @Description Get detailed information about a specific deployment
+// @Tags Deployments
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path string true "Job ID"
+// @Param id path string true "Deployment ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 404 {object} map[string]string
-// @Router /jobs/{id} [get]
-func (s *APIServer) handleGetJob(w http.ResponseWriter, r *http.Request) {
+// @Router /deployments/{id} [get]
+func (s *APIServer) handleGetDeployment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	jobID := vars["id"]
+	deploymentID := vars["id"]
 
 	ctx := context.Background()
 
-	activeJob, err := s.storage.GetJobActive(ctx, jobID)
+	activeDeployment, err := s.storage.GetDeploymentActive(ctx, deploymentID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get active job: %v", err)
+		log.Printf("[Centro REST] Failed to get active deployment: %v", err)
 	}
 
-	events, err := s.storage.GetJobEvents(ctx, jobID)
+	events, err := s.storage.GetDeploymentEvents(ctx, deploymentID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get job events: %v", err)
+		log.Printf("[Centro REST] Failed to get deployment events: %v", err)
 	}
 
-	if activeJob != nil {
+	if activeDeployment != nil {
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"job_id":     jobID,
+			"deployment_id":     deploymentID,
 			"status":     "active",
-			"node_id":    activeJob.NodeID,
-			"detail":     activeJob.Detail,
-			"updated_at": activeJob.UpdatedAt,
-			"claimed_at": activeJob.ClaimedAt,
-			"job":        activeJob.Job,
+			"node_id":    activeDeployment.NodeID,
+			"detail":     activeDeployment.Detail,
+			"updated_at": activeDeployment.UpdatedAt,
+			"claimed_at": activeDeployment.ClaimedAt,
+			"deployment":        activeDeployment.Deployment,
 			"events":     events,
 		})
 		return
 	}
-	
-	queueJob, err := s.storage.GetQueueJob(ctx, jobID)
+
+	queueDeployment, err := s.storage.GetQueueDeployment(ctx, deploymentID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get queue job: %v", err)
+		log.Printf("[Centro REST] Failed to get queue deployment: %v", err)
 	}
 
-	if queueJob != nil {
+	if queueDeployment != nil {
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"job_id":     jobID,
+			"deployment_id":     deploymentID,
 			"status":     "queued",
 			"node_id":    "",
-			"detail":     fmt.Sprintf("Job queued (attempt %d/%d)", queueJob.RetryCount, queueJob.MaxRetries),
+			"detail":     fmt.Sprintf("Deployment queued (attempt %d/%d)", queueDeployment.RetryCount, queueDeployment.MaxRetries),
 			"updated_at": nil,
 			"claimed_at": nil,
-			"job":        queueJob,
+			"deployment":        queueDeployment,
 			"events":     events,
 		})
 		return
 	}
 
-	failedJob, err := s.storage.GetFailedJob(ctx, jobID)
-	log.Printf("[Centro REST] Failed job: %v", failedJob)
+	failedDeployment, err := s.storage.GetFailedDeployment(ctx, deploymentID)
+	log.Printf("[Centro REST] Failed deployment: %v", failedDeployment)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get failed job: %v", err)
+		log.Printf("[Centro REST] Failed to get failed deployment: %v", err)
 	}
 
-	if failedJob != nil {
+	if failedDeployment != nil {
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"job_id":     jobID,
+			"deployment_id":     deploymentID,
 			"status":     "failed",
 			"node_id":    "",
-			"detail":     fmt.Sprintf("Job failed, pending retry (attempt %d/%d)", failedJob.RetryCount, failedJob.MaxRetries),
+			"detail":     fmt.Sprintf("Deployment failed, pending retry (attempt %d/%d)", failedDeployment.RetryCount, failedDeployment.MaxRetries),
 			"updated_at": nil,
 			"claimed_at": nil,
-			"job":        failedJob,
+			"deployment":        failedDeployment,
 			"events":     events,
 		})
 		return
 	}
 
-	historyJob, err := s.storage.GetJobHistory(ctx, jobID)
+	historyDeployment, err := s.storage.GetDeploymentHistory(ctx, deploymentID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get job history: %v", err)
+		log.Printf("[Centro REST] Failed to get deployment history: %v", err)
 	}
 
-	if historyJob != nil {
+	if historyDeployment != nil {
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"job_id":     jobID,
+			"deployment_id":     deploymentID,
 			"status":     "completed",
-			"node_id":    historyJob.NodeID,
-			"detail":     historyJob.Detail,
-			"updated_at": historyJob.UpdatedAt,
-			"claimed_at": historyJob.ClaimedAt,
-			"job":        historyJob.Job,
+			"node_id":    historyDeployment.NodeID,
+			"detail":     historyDeployment.Detail,
+			"updated_at": historyDeployment.UpdatedAt,
+			"claimed_at": historyDeployment.ClaimedAt,
+			"deployment":        historyDeployment.Deployment,
 			"events":     events,
 		})
 		return
 	}
 
-	respondWithError(w, http.StatusNotFound, "Job not found")
+	respondWithError(w, http.StatusNotFound, "Deployment not found")
 }
 
-// handleGetJobStatus godoc
-// @Summary Get job status
-// @Description Get the current status of a specific job
-// @Tags Jobs
+// handleGetDeploymentStatus godoc
+// @Summary Get deployment status
+// @Description Get the current status of a specific deployment
+// @Tags Deployments
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path string true "Job ID"
+// @Param id path string true "Deployment ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 404 {object} map[string]string
-// @Router /jobs/{id}/status [get]
-func (s *APIServer) handleGetJobStatus(w http.ResponseWriter, r *http.Request) {
+// @Router /deployments/{id}/status [get]
+func (s *APIServer) handleGetDeploymentStatus(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	jobID := vars["id"]
+	deploymentID := vars["id"]
 
 	ctx := context.Background()
 
-	activeJob, err := s.storage.GetJobActive(ctx, jobID)
+	activeDeployment, err := s.storage.GetDeploymentActive(ctx, deploymentID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get active job: %v", err)
+		log.Printf("[Centro REST] Failed to get active deployment: %v", err)
 	}
 
-	if activeJob != nil {
+	if activeDeployment != nil {
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"job_id":     jobID,
-			"status":     activeJob.Status,
-			"node_id":    activeJob.NodeID,
-			"detail":     activeJob.Detail,
-			"updated_at": activeJob.UpdatedAt,
+			"deployment_id":     deploymentID,
+			"status":     activeDeployment.Status,
+			"node_id":    activeDeployment.NodeID,
+			"detail":     activeDeployment.Detail,
+			"updated_at": activeDeployment.UpdatedAt,
 		})
 		return
 	}
 
-	historyJob, err := s.storage.GetJobHistory(ctx, jobID)
+	historyDeployment, err := s.storage.GetDeploymentHistory(ctx, deploymentID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get job history: %v", err)
+		log.Printf("[Centro REST] Failed to get deployment history: %v", err)
 	}
 
-	if historyJob != nil {
+	if historyDeployment != nil {
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"job_id":     jobID,
-			"status":     historyJob.Status,
-			"node_id":    historyJob.NodeID,
-			"detail":     historyJob.Detail,
-			"updated_at": historyJob.UpdatedAt,
+			"deployment_id":     deploymentID,
+			"status":     historyDeployment.Status,
+			"node_id":    historyDeployment.NodeID,
+			"detail":     historyDeployment.Detail,
+			"updated_at": historyDeployment.UpdatedAt,
 		})
 		return
 	}
 
-	respondWithError(w, http.StatusNotFound, "Job not found")
+	respondWithError(w, http.StatusNotFound, "Deployment not found")
 }
 
 // handleListInstances godoc
@@ -536,32 +720,32 @@ func (s *APIServer) handleListInstances(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// handleGetJobEvents godoc
-// @Summary Get job events
-// @Description Retrieve events for a specific job
-// @Tags Jobs
+// handleGetDeploymentEvents godoc
+// @Summary Get deployment events
+// @Description Retrieve events for a specific deployment
+// @Tags Deployments
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path string true "Job ID"
+// @Param id path string true "Deployment ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 500 {object} map[string]string
-// @Router /jobs/{id}/events [get]
-func (s *APIServer) handleGetJobEvents(w http.ResponseWriter, r *http.Request) {
+// @Router /deployments/{id}/events [get]
+func (s *APIServer) handleGetDeploymentEvents(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	jobID := vars["id"]
+	deploymentID := vars["id"]
 
 	ctx := context.Background()
-	events, err := s.storage.GetJobEvents(ctx, jobID)
+	events, err := s.storage.GetDeploymentEvents(ctx, deploymentID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get job events: %v", err)
+		log.Printf("[Centro REST] Failed to get deployment events: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve events")
 		return
 	}
 
 	if events == nil {
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"job_id": jobID,
+			"deployment_id": deploymentID,
 			"events": []string{},
 		})
 		return
@@ -571,7 +755,7 @@ func (s *APIServer) handleGetJobEvents(w http.ResponseWriter, r *http.Request) {
 	filteredEvents := filterConsecutiveDuplicates(events)
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"job_id": jobID,
+		"deployment_id": deploymentID,
 		"events": filteredEvents,
 	})
 }
@@ -611,8 +795,8 @@ func extractEventMessage(event string) string {
 }
 
 // handleGetInstanceData godoc
-// @Summary Get instance data for a job
-// @Description Retrieves the instance data associated with a specific job
+// @Summary Get instance data for a deployment
+// @Description Retrieves the instance data associated with a specific deployment
 // @Tags Instances
 // @Security BearerAuth
 // @Produce json
@@ -623,10 +807,10 @@ func extractEventMessage(event string) string {
 // @Router /instances/{id} [get]
 func (s *APIServer) handleGetInstanceData(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	jobID := vars["id"]
+	deploymentID := vars["id"]
 
 	ctx := context.Background()
-	instanceData, err := s.storage.GetInstanceData(ctx, jobID)
+	instanceData, err := s.storage.GetInstanceData(ctx, deploymentID)
 	if err != nil {
 		log.Printf("[Centro REST] Failed to get instance data: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve instance data")
@@ -634,19 +818,19 @@ func (s *APIServer) handleGetInstanceData(w http.ResponseWriter, r *http.Request
 	}
 
 	if instanceData == nil {
-		respondWithError(w, http.StatusNotFound, "Instance data not found for this job")
+		respondWithError(w, http.StatusNotFound, "Instance data not found for this deployment")
 		return
 	}
 
-	events, err := s.storage.GetJobEvents(ctx, jobID)
+	events, err := s.storage.GetDeploymentEvents(ctx, deploymentID)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get job events: %v", err)
+		log.Printf("[Centro REST] Failed to get deployment events: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve events")
 		return
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"job_id":        jobID,
+		"deployment_id":        deploymentID,
 		"instance_data": instanceData,
 		"events":        events,
 	})
@@ -797,13 +981,13 @@ func (s *APIServer) handleStats(w http.ResponseWriter, r *http.Request) {
 		queueLength = 0
 	}
 
-	activeCount, err := s.storage.GetActiveJobCount(ctx)
+	activeCount, err := s.storage.GetActiveDeploymentCount(ctx)
 	if err != nil {
-		log.Printf("[Centro REST] Failed to get active job count: %v", err)
+		log.Printf("[Centro REST] Failed to get active deployment count: %v", err)
 		activeCount = 0
 	}
 
-	completedCount, err := s.storage.GetJobHistoryCount(ctx)
+	completedCount, err := s.storage.GetDeploymentHistoryCount(ctx)
 	if err != nil {
 		log.Printf("[Centro REST] Failed to get history count: %v", err)
 		completedCount = 0
@@ -821,7 +1005,7 @@ func (s *APIServer) handleStats(w http.ResponseWriter, r *http.Request) {
 			"total":   len(nodes),
 			"healthy": healthyNodes,
 		},
-		"jobs": map[string]interface{}{
+		"deployments": map[string]interface{}{
 			"queued":    queueLength,
 			"active":    activeCount,
 			"completed": completedCount,

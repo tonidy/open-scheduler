@@ -1,4 +1,22 @@
 #!/bin/bash
+# Check if Podman machine is running; if not, start it
+if command -v podman &> /dev/null; then
+    if podman machine list &> /dev/null; then
+        RUNNING_MACHINE=$(podman machine list --format "{{.Name}}:{{.Running}}" | grep ":true" | cut -d: -f1)
+        if [ -z "$RUNNING_MACHINE" ]; then
+            echo "==> No running Podman machine found. Attempting to start the first available Podman machine..."
+            FIRST_MACHINE=$(podman machine list --format "{{.Name}}" | head -n 1)
+            if [ -n "$FIRST_MACHINE" ]; then
+                podman machine start "$FIRST_MACHINE"
+            else
+                echo " [!] No Podman machine found to start."
+            fi
+        else
+            echo "==> Podman machine '$RUNNING_MACHINE' is already running."
+        fi
+    fi
+fi
+
 pkill etcd > /dev/null 2>&1
 killall centro_server > /dev/null 2>&1
 killall agent_client > /dev/null 2>&1

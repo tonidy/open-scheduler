@@ -70,15 +70,15 @@ func NewIncusDriver() *IncusDriver {
 	}
 }
 
-func (d *IncusDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
-	err := d.pullImage(ctx, job.InstanceConfig.ImageName)
+func (d *IncusDriver) Run(ctx context.Context, deployment *pb.Deployment) (string, error) {
+	err := d.pullImage(ctx, deployment.InstanceConfig.ImageName)
 	if err != nil {
-		return "", fmt.Errorf("failed to pull image %s: %w", job.InstanceConfig.ImageName, err)
+		return "", fmt.Errorf("failed to pull image %s: %w", deployment.InstanceConfig.ImageName, err)
 	}
 
-	id, err := d.createInstance(ctx, job)
+	id, err := d.createInstance(ctx, deployment)
 	if err != nil {
-		return "", fmt.Errorf("failed to create instance %s: %w", job.InstanceConfig.ImageName, err)
+		return "", fmt.Errorf("failed to create instance %s: %w", deployment.InstanceConfig.ImageName, err)
 	}
 
 	return id, nil
@@ -101,9 +101,9 @@ func (d *IncusDriver) pullImage(ctx context.Context, image string) error {
 	return nil
 }
 
-func (d *IncusDriver) createInstance(ctx context.Context, job *pb.Job) (string, error) {
-	// Generate container name from job ID
-	containerName := fmt.Sprintf("open-scheduler-%s", job.JobId)
+func (d *IncusDriver) createInstance(ctx context.Context, deployment *pb.Deployment) (string, error) {
+	// Generate container name from deployment ID
+	containerName := fmt.Sprintf("open-scheduler-%s", deployment.DeploymentId)
 
 	// Prepare instance creation request
 	req := api.InstancesPost{
@@ -111,32 +111,49 @@ func (d *IncusDriver) createInstance(ctx context.Context, job *pb.Job) (string, 
 		Type: api.InstanceTypeContainer,
 		Source: api.InstanceSource{
 			Type:  "image",
-			Alias: job.InstanceConfig.ImageName,
+			Alias: deployment.InstanceConfig.ImageName,
 		},
+	}
+
+	// Override source if image_source is specified
+	if deployment.InstanceConfig.ImageSource != nil {
+		req.Source = api.InstanceSource{
+			Type:   "image",
+			Alias:  deployment.InstanceConfig.ImageSource.Alias,
+			Server: deployment.InstanceConfig.ImageSource.Server,
+			Mode:   deployment.InstanceConfig.ImageSource.Mode,
+		}
+	}
+
+	// Set instance type if specified (virtual-machine vs container)
+	if deployment.InstanceType != "" {
+		req.Type = api.InstanceType(deployment.InstanceType)
+	} else if deployment.WorkloadType == "vm" {
+		req.Type = api.InstanceTypeVM
 	}
 
 	// Set instance configuration
 	instanceConfig := make(map[string]string)
 	instanceConfig["user.open-scheduler.managed"] = "true"
-	instanceConfig["user.open-scheduler.job-name"] = job.JobName
-	instanceConfig["user.open-scheduler.job-id"] = job.JobId
+	instanceConfig["user.open-scheduler.deployment-name"] = deployment.DeploymentName
+	instanceConfig["user.open-scheduler.deployment-id"] = deployment.DeploymentId
 
 	// Set resource limits
-	if job.ResourceRequirements != nil {
-		if job.ResourceRequirements.MemoryLimitMb > 0 {
-			instanceConfig["limits.memory"] = fmt.Sprintf("%dMB", job.ResourceRequirements.MemoryLimitMb)
+	if deployment.ResourceRequirements != nil {
+		if deployment.ResourceRequirements.MemoryLimitMb > 0 {
+			instanceConfig["limits.memory"] = fmt.Sprintf("%dMB", deployment.ResourceRequirements.MemoryLimitMb)
 		}
-		if job.ResourceRequirements.CpuLimitCores > 0 {
-			instanceConfig["limits.cpu"] = fmt.Sprintf("%.2f", job.ResourceRequirements.CpuLimitCores)
+		if deployment.ResourceRequirements.CpuLimitCores > 0 {
+			instanceConfig["limits.cpu"] = fmt.Sprintf("%.2f", deployment.ResourceRequirements.CpuLimitCores)
 		}
 	}
 
 	req.Config = instanceConfig
 
 	// Set environment variables
-	if len(job.EnvironmentVariables) > 0 {
+	if len(deployment.EnvironmentVariables) > 0 {
 		envVars := ""
-		for k, v := range job.EnvironmentVariables {
+		for k, v := range deployment.EnvironmentVariables {
 			if envVars != "" {
 				envVars += " "
 			}
@@ -146,24 +163,42 @@ func (d *IncusDriver) createInstance(ctx context.Context, job *pb.Job) (string, 
 	}
 
 	// Set command and arguments
-	if len(job.InstanceConfig.Entrypoint) > 0 {
+	// Priority: command_array > InstanceConfig.Entrypoint > Command (legacy)
+	var cmdParts []string
+	if len(deployment.CommandArray) > 0 {
+		cmdParts = deployment.CommandArray
+	} else if len(deployment.InstanceConfig.Entrypoint) > 0 {
+		cmdParts = deployment.InstanceConfig.Entrypoint
+		if len(deployment.InstanceConfig.Arguments) > 0 {
+			cmdParts = append(cmdParts, deployment.InstanceConfig.Arguments...)
+		}
+	} else if deployment.Command != "" {
+		cmdParts = []string{"sh", "-c", deployment.Command}
+	}
+
+	if len(cmdParts) > 0 {
 		cmd := ""
-		for i, arg := range job.InstanceConfig.Entrypoint {
+		for i, arg := range cmdParts {
 			if i > 0 {
 				cmd += " "
 			}
 			cmd += arg
 		}
-		if len(job.InstanceConfig.Arguments) > 0 {
-			for _, arg := range job.InstanceConfig.Arguments {
-				cmd += " " + arg
-			}
-		}
 		instanceConfig["raw.lxc"] = fmt.Sprintf("lxc.init.cmd=%s", cmd)
 	}
 
+	// Set working directory
+	if deployment.WorkingDir != "" {
+		instanceConfig["raw.lxc"] += fmt.Sprintf("\nlxc.init.cwd=%s", deployment.WorkingDir)
+	}
+
+	// Set instance type if specified
+	if deployment.InstanceType != "" {
+		req.Type = api.InstanceType(deployment.InstanceType)
+	}
+
 	// Create instance
-	log.Printf("[IncusDriver] Creating instance for job %s with image: %s", job.JobId, job.InstanceConfig.ImageName)
+	log.Printf("[IncusDriver] Creating instance for deployment %s with image: %s", deployment.DeploymentId, deployment.InstanceConfig.ImageName)
 	op, err := d.server.CreateInstance(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to create instance: %w", err)
@@ -176,14 +211,14 @@ func (d *IncusDriver) createInstance(ctx context.Context, job *pb.Job) (string, 
 	}
 
 	// Add volume mounts
-	if len(job.VolumeMounts) > 0 {
+	if len(deployment.VolumeMounts) > 0 {
 		instance, _, err := d.server.GetInstance(containerName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get instance: %w", err)
 		}
 
 		deviceMap := make(map[string]map[string]string)
-		for i, vol := range job.VolumeMounts {
+		for i, vol := range deployment.VolumeMounts {
 			deviceName := fmt.Sprintf("volume%d", i)
 			deviceConfig := map[string]string{
 				"type":     "disk",

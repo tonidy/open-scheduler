@@ -4,9 +4,9 @@
   import Login from './pages/Login.svelte';
   import Layout from './components/Layout.svelte';
   import Dashboard from './pages/Dashboard.svelte';
-  import Jobs from './pages/Jobs.svelte';
-  import JobDetails from './pages/JobDetails.svelte';
-  import CreateJob from './pages/CreateJob.svelte';
+  import Deployments from './pages/Deployments.svelte';
+  import DeploymentDetails from './pages/DeploymentDetails.svelte';
+  import CreateDeployment from './pages/CreateDeployment.svelte';
   import Nodes from './pages/Nodes.svelte';
   import NodeDetails from './pages/NodeDetails.svelte';
   import Instances from './pages/Instances.svelte';
@@ -22,9 +22,13 @@
     <Layout>
       <Route path="/" component={Dashboard} />
       <Route path="/dashboard" component={Dashboard} />
-      <Route path="/jobs" component={Jobs} />
-      <Route path="/jobs/create" component={CreateJob} />
-      <Route path="/jobs/:id" component={JobDetails} />
+      <Route path="/deployments" component={Deployments} />
+      <Route path="/deployments/create" component={CreateDeployment} />
+      <Route path="/deployments/:id" component={DeploymentDetails} />
+      <!-- Legacy routes for backward compatibility -->
+      <Route path="/jobs" component={Deployments} />
+      <Route path="/jobs/create" component={CreateDeployment} />
+      <Route path="/jobs/:id" component={DeploymentDetails} />
       <Route path="/nodes" component={Nodes} />
       <Route path="/nodes/:id" component={NodeDetails} />
       <Route path="/instances" component={Instances} />

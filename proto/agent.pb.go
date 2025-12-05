@@ -166,28 +166,28 @@ func (x *HeartbeatResponse) GetResponseMessage() string {
 	return ""
 }
 
-// Request from Agent to get an available job from Centro
-type GetJobRequest struct {
+// Request from Agent to get an available deployment from Centro
+type GetDeploymentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetJobRequest) Reset() {
-	*x = GetJobRequest{}
+func (x *GetDeploymentRequest) Reset() {
+	*x = GetDeploymentRequest{}
 	mi := &file_proto_agent_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetJobRequest) String() string {
+func (x *GetDeploymentRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetJobRequest) ProtoMessage() {}
+func (*GetDeploymentRequest) ProtoMessage() {}
 
-func (x *GetJobRequest) ProtoReflect() protoreflect.Message {
+func (x *GetDeploymentRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_agent_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -199,56 +199,67 @@ func (x *GetJobRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetJobRequest.ProtoReflect.Descriptor instead.
-func (*GetJobRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetDeploymentRequest.ProtoReflect.Descriptor instead.
+func (*GetDeploymentRequest) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetJobRequest) GetNodeId() string {
+func (x *GetDeploymentRequest) GetNodeId() string {
 	if x != nil {
 		return x.NodeId
 	}
 	return ""
 }
 
-// Job specification - simplified model where each job runs exactly one instance (container or VM)
-type Job struct {
+// Deployment specification - supports template.yaml deployment spec
+type Deployment struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
-	JobId            string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	JobName          string                 `protobuf:"bytes,2,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty"`
-	JobType          string                 `protobuf:"bytes,3,opt,name=job_type,json=jobType,proto3" json:"job_type,omitempty"`                            // Job type: "service", "batch", etc.
-	SelectedClusters []string               `protobuf:"bytes,4,rep,name=selected_clusters,json=selectedClusters,proto3" json:"selected_clusters,omitempty"` // Clusters where this job can run (empty = any cluster)
-	// Job execution configuration (merged from Task)
+	DeploymentId     string                 `protobuf:"bytes,1,opt,name=deployment_id,json=deploymentId,proto3" json:"deployment_id,omitempty"`
+	DeploymentName   string                 `protobuf:"bytes,2,opt,name=deployment_name,json=deploymentName,proto3" json:"deployment_name,omitempty"`
+	DeploymentType   string                 `protobuf:"bytes,3,opt,name=deployment_type,json=deploymentType,proto3" json:"deployment_type,omitempty"`       // Deployment type: "service", "batch", etc.
+	SelectedClusters []string               `protobuf:"bytes,4,rep,name=selected_clusters,json=selectedClusters,proto3" json:"selected_clusters,omitempty"` // Clusters where this deployment can run (empty = any cluster)
+	// Deployment execution configuration (merged from Task)
 	DriverType           string            `protobuf:"bytes,5,opt,name=driver_type,json=driverType,proto3" json:"driver_type,omitempty"`             // Driver type: "podman", "incus", "exec"
-	Command              string            `protobuf:"bytes,6,opt,name=command,proto3" json:"command,omitempty"`                                     // Command or script to execute
+	Command              string            `protobuf:"bytes,6,opt,name=command,proto3" json:"command,omitempty"`                                     // Command or script to execute (legacy string format)
+	CommandArray         []string          `protobuf:"bytes,25,rep,name=command_array,json=commandArray,proto3" json:"command_array,omitempty"`      // Command as array (e.g., ["nginx", "-g", "daemon off;"])
 	InstanceConfig       *InstanceSpec     `protobuf:"bytes,7,opt,name=instance_config,json=instanceConfig,proto3" json:"instance_config,omitempty"` // Instance configuration (for containers, VMs, etc.)
 	EnvironmentVariables map[string]string `protobuf:"bytes,8,rep,name=environment_variables,json=environmentVariables,proto3" json:"environment_variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	ResourceRequirements *Resources        `protobuf:"bytes,9,opt,name=resource_requirements,json=resourceRequirements,proto3" json:"resource_requirements,omitempty"`
 	VolumeMounts         []*Volume         `protobuf:"bytes,10,rep,name=volume_mounts,json=volumeMounts,proto3" json:"volume_mounts,omitempty"`
-	WorkloadType         string            `protobuf:"bytes,11,opt,name=workload_type,json=workloadType,proto3" json:"workload_type,omitempty"`                                                                        // Workload type: "container", "vm", "process"
-	JobMetadata          map[string]string `protobuf:"bytes,12,rep,name=job_metadata,json=jobMetadata,proto3" json:"job_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Job-level metadata
-	// Job retry and failure tracking
-	RetryCount    int32 `protobuf:"varint,13,opt,name=retry_count,json=retryCount,proto3" json:"retry_count,omitempty"`            // Number of times this job has been retried
+	WorkloadType         string            `protobuf:"bytes,11,opt,name=workload_type,json=workloadType,proto3" json:"workload_type,omitempty"`                                                                                             // Workload type: "container", "vm", "process"
+	DeploymentMetadata   map[string]string `protobuf:"bytes,12,rep,name=deployment_metadata,json=deploymentMetadata,proto3" json:"deployment_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Deployment-level metadata
+	// Deployment retry and failure tracking
+	RetryCount    int32 `protobuf:"varint,13,opt,name=retry_count,json=retryCount,proto3" json:"retry_count,omitempty"`            // Number of times this deployment has been retried
 	MaxRetries    int32 `protobuf:"varint,14,opt,name=max_retries,json=maxRetries,proto3" json:"max_retries,omitempty"`            // Maximum number of retries allowed (0 = no limit)
 	LastRetryTime int64 `protobuf:"varint,15,opt,name=last_retry_time,json=lastRetryTime,proto3" json:"last_retry_time,omitempty"` // Unix timestamp of last retry attempt
+	// New fields for template.yaml support
+	Replicas      int32               `protobuf:"varint,16,opt,name=replicas,proto3" json:"replicas,omitempty"`                               // Number of instances to run (default: 1)
+	Placement     *Placement          `protobuf:"bytes,17,opt,name=placement,proto3" json:"placement,omitempty"`                              // Placement constraints and strategy
+	WorkingDir    string              `protobuf:"bytes,18,opt,name=working_dir,json=workingDir,proto3" json:"working_dir,omitempty"`          // Working directory for the instance
+	Ports         []*PortMapping      `protobuf:"bytes,19,rep,name=ports,proto3" json:"ports,omitempty"`                                      // Port mappings (host:container:protocol)
+	Security      *SecuritySettings   `protobuf:"bytes,20,opt,name=security,proto3" json:"security,omitempty"`                                // Security settings (privileged, capabilities, etc.)
+	HealthCheck   *HealthCheck        `protobuf:"bytes,21,opt,name=health_check,json=healthCheck,proto3" json:"health_check,omitempty"`       // Health check configuration
+	RestartPolicy *RestartPolicy      `protobuf:"bytes,22,opt,name=restart_policy,json=restartPolicy,proto3" json:"restart_policy,omitempty"` // Restart policy for failed instances
+	Networks      []*NetworkReference `protobuf:"bytes,23,rep,name=networks,proto3" json:"networks,omitempty"`                                // Network assignments
+	InstanceType  string              `protobuf:"bytes,24,opt,name=instance_type,json=instanceType,proto3" json:"instance_type,omitempty"`    // Instance type: "virtual-machine", "container" (for Incus)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Job) Reset() {
-	*x = Job{}
+func (x *Deployment) Reset() {
+	*x = Deployment{}
 	mi := &file_proto_agent_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Job) String() string {
+func (x *Deployment) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Job) ProtoMessage() {}
+func (*Deployment) ProtoMessage() {}
 
-func (x *Job) ProtoReflect() protoreflect.Message {
+func (x *Deployment) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_agent_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -260,117 +271,187 @@ func (x *Job) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Job.ProtoReflect.Descriptor instead.
-func (*Job) Descriptor() ([]byte, []int) {
+// Deprecated: Use Deployment.ProtoReflect.Descriptor instead.
+func (*Deployment) Descriptor() ([]byte, []int) {
 	return file_proto_agent_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *Job) GetJobId() string {
+func (x *Deployment) GetDeploymentId() string {
 	if x != nil {
-		return x.JobId
+		return x.DeploymentId
 	}
 	return ""
 }
 
-func (x *Job) GetJobName() string {
+func (x *Deployment) GetDeploymentName() string {
 	if x != nil {
-		return x.JobName
+		return x.DeploymentName
 	}
 	return ""
 }
 
-func (x *Job) GetJobType() string {
+func (x *Deployment) GetDeploymentType() string {
 	if x != nil {
-		return x.JobType
+		return x.DeploymentType
 	}
 	return ""
 }
 
-func (x *Job) GetSelectedClusters() []string {
+func (x *Deployment) GetSelectedClusters() []string {
 	if x != nil {
 		return x.SelectedClusters
 	}
 	return nil
 }
 
-func (x *Job) GetDriverType() string {
+func (x *Deployment) GetDriverType() string {
 	if x != nil {
 		return x.DriverType
 	}
 	return ""
 }
 
-func (x *Job) GetCommand() string {
+func (x *Deployment) GetCommand() string {
 	if x != nil {
 		return x.Command
 	}
 	return ""
 }
 
-func (x *Job) GetInstanceConfig() *InstanceSpec {
+func (x *Deployment) GetCommandArray() []string {
+	if x != nil {
+		return x.CommandArray
+	}
+	return nil
+}
+
+func (x *Deployment) GetInstanceConfig() *InstanceSpec {
 	if x != nil {
 		return x.InstanceConfig
 	}
 	return nil
 }
 
-func (x *Job) GetEnvironmentVariables() map[string]string {
+func (x *Deployment) GetEnvironmentVariables() map[string]string {
 	if x != nil {
 		return x.EnvironmentVariables
 	}
 	return nil
 }
 
-func (x *Job) GetResourceRequirements() *Resources {
+func (x *Deployment) GetResourceRequirements() *Resources {
 	if x != nil {
 		return x.ResourceRequirements
 	}
 	return nil
 }
 
-func (x *Job) GetVolumeMounts() []*Volume {
+func (x *Deployment) GetVolumeMounts() []*Volume {
 	if x != nil {
 		return x.VolumeMounts
 	}
 	return nil
 }
 
-func (x *Job) GetWorkloadType() string {
+func (x *Deployment) GetWorkloadType() string {
 	if x != nil {
 		return x.WorkloadType
 	}
 	return ""
 }
 
-func (x *Job) GetJobMetadata() map[string]string {
+func (x *Deployment) GetDeploymentMetadata() map[string]string {
 	if x != nil {
-		return x.JobMetadata
+		return x.DeploymentMetadata
 	}
 	return nil
 }
 
-func (x *Job) GetRetryCount() int32 {
+func (x *Deployment) GetRetryCount() int32 {
 	if x != nil {
 		return x.RetryCount
 	}
 	return 0
 }
 
-func (x *Job) GetMaxRetries() int32 {
+func (x *Deployment) GetMaxRetries() int32 {
 	if x != nil {
 		return x.MaxRetries
 	}
 	return 0
 }
 
-func (x *Job) GetLastRetryTime() int64 {
+func (x *Deployment) GetLastRetryTime() int64 {
 	if x != nil {
 		return x.LastRetryTime
 	}
 	return 0
 }
 
-// Resource requirements and limits for job execution
+func (x *Deployment) GetReplicas() int32 {
+	if x != nil {
+		return x.Replicas
+	}
+	return 0
+}
+
+func (x *Deployment) GetPlacement() *Placement {
+	if x != nil {
+		return x.Placement
+	}
+	return nil
+}
+
+func (x *Deployment) GetWorkingDir() string {
+	if x != nil {
+		return x.WorkingDir
+	}
+	return ""
+}
+
+func (x *Deployment) GetPorts() []*PortMapping {
+	if x != nil {
+		return x.Ports
+	}
+	return nil
+}
+
+func (x *Deployment) GetSecurity() *SecuritySettings {
+	if x != nil {
+		return x.Security
+	}
+	return nil
+}
+
+func (x *Deployment) GetHealthCheck() *HealthCheck {
+	if x != nil {
+		return x.HealthCheck
+	}
+	return nil
+}
+
+func (x *Deployment) GetRestartPolicy() *RestartPolicy {
+	if x != nil {
+		return x.RestartPolicy
+	}
+	return nil
+}
+
+func (x *Deployment) GetNetworks() []*NetworkReference {
+	if x != nil {
+		return x.Networks
+	}
+	return nil
+}
+
+func (x *Deployment) GetInstanceType() string {
+	if x != nil {
+		return x.InstanceType
+	}
+	return ""
+}
+
+// Resource requirements and limits for deployment execution
 type Resources struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	MemoryLimitMb    int64                  `protobuf:"varint,1,opt,name=memory_limit_mb,json=memoryLimitMb,proto3" json:"memory_limit_mb,omitempty"`           // Maximum memory in MB
@@ -445,6 +526,7 @@ type Volume struct {
 	SourcePath    string                 `protobuf:"bytes,1,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"` // Path on the host system
 	TargetPath    string                 `protobuf:"bytes,2,opt,name=target_path,json=targetPath,proto3" json:"target_path,omitempty"` // Path inside the instance/VM
 	ReadOnly      bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`      // Whether the mount is read-only
+	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`                               // Mount type: "bind", "volume", etc.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -500,6 +582,493 @@ func (x *Volume) GetReadOnly() bool {
 	return false
 }
 
+func (x *Volume) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+// Placement constraints and strategy for deployment scheduling
+type Placement struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Constraints   []string               `protobuf:"bytes,1,rep,name=constraints,proto3" json:"constraints,omitempty"` // Placement constraints (e.g., "node.driver in [podman, containerd]", "node.label.zone == us-east")
+	Strategy      string                 `protobuf:"bytes,2,opt,name=strategy,proto3" json:"strategy,omitempty"`       // Placement strategy: "spread", "pack", "random"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Placement) Reset() {
+	*x = Placement{}
+	mi := &file_proto_agent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Placement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Placement) ProtoMessage() {}
+
+func (x *Placement) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Placement.ProtoReflect.Descriptor instead.
+func (*Placement) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Placement) GetConstraints() []string {
+	if x != nil {
+		return x.Constraints
+	}
+	return nil
+}
+
+func (x *Placement) GetStrategy() string {
+	if x != nil {
+		return x.Strategy
+	}
+	return ""
+}
+
+// Port mapping configuration
+type PortMapping struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	HostPort      int32                  `protobuf:"varint,1,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`                // Port on the host
+	ContainerPort int32                  `protobuf:"varint,2,opt,name=container_port,json=containerPort,proto3" json:"container_port,omitempty"` // Port inside the container/instance
+	Protocol      string                 `protobuf:"bytes,3,opt,name=protocol,proto3" json:"protocol,omitempty"`                                 // Protocol: "tcp", "udp"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PortMapping) Reset() {
+	*x = PortMapping{}
+	mi := &file_proto_agent_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PortMapping) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PortMapping) ProtoMessage() {}
+
+func (x *PortMapping) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PortMapping.ProtoReflect.Descriptor instead.
+func (*PortMapping) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *PortMapping) GetHostPort() int32 {
+	if x != nil {
+		return x.HostPort
+	}
+	return 0
+}
+
+func (x *PortMapping) GetContainerPort() int32 {
+	if x != nil {
+		return x.ContainerPort
+	}
+	return 0
+}
+
+func (x *PortMapping) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+// Security settings for containers/instances
+type SecuritySettings struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Privileged             bool                   `protobuf:"varint,1,opt,name=privileged,proto3" json:"privileged,omitempty"`                                                           // Whether to run in privileged mode
+	CapabilitiesAdd        []string               `protobuf:"bytes,2,rep,name=capabilities_add,json=capabilitiesAdd,proto3" json:"capabilities_add,omitempty"`                           // Capabilities to add (e.g., ["NET_BIND_SERVICE"])
+	CapabilitiesDrop       []string               `protobuf:"bytes,3,rep,name=capabilities_drop,json=capabilitiesDrop,proto3" json:"capabilities_drop,omitempty"`                        // Capabilities to drop (e.g., ["ALL"])
+	ReadOnlyRootFilesystem bool                   `protobuf:"varint,4,opt,name=read_only_root_filesystem,json=readOnlyRootFilesystem,proto3" json:"read_only_root_filesystem,omitempty"` // Whether root filesystem is read-only
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *SecuritySettings) Reset() {
+	*x = SecuritySettings{}
+	mi := &file_proto_agent_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SecuritySettings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SecuritySettings) ProtoMessage() {}
+
+func (x *SecuritySettings) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SecuritySettings.ProtoReflect.Descriptor instead.
+func (*SecuritySettings) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SecuritySettings) GetPrivileged() bool {
+	if x != nil {
+		return x.Privileged
+	}
+	return false
+}
+
+func (x *SecuritySettings) GetCapabilitiesAdd() []string {
+	if x != nil {
+		return x.CapabilitiesAdd
+	}
+	return nil
+}
+
+func (x *SecuritySettings) GetCapabilitiesDrop() []string {
+	if x != nil {
+		return x.CapabilitiesDrop
+	}
+	return nil
+}
+
+func (x *SecuritySettings) GetReadOnlyRootFilesystem() bool {
+	if x != nil {
+		return x.ReadOnlyRootFilesystem
+	}
+	return false
+}
+
+// Health check configuration
+type HealthCheck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Test          []string               `protobuf:"bytes,1,rep,name=test,proto3" json:"test,omitempty"`                                  // Health check test command (e.g., ["CMD-SHELL", "curl -f http://localhost/ || exit 1"])
+	Interval      string                 `protobuf:"bytes,2,opt,name=interval,proto3" json:"interval,omitempty"`                          // Interval between health checks (e.g., "30s")
+	Timeout       string                 `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`                            // Timeout for health check (e.g., "5s")
+	Retries       int32                  `protobuf:"varint,4,opt,name=retries,proto3" json:"retries,omitempty"`                           // Number of consecutive failures before marking unhealthy
+	StartPeriod   string                 `protobuf:"bytes,5,opt,name=start_period,json=startPeriod,proto3" json:"start_period,omitempty"` // Grace period before health checks start (e.g., "5s")
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HealthCheck) Reset() {
+	*x = HealthCheck{}
+	mi := &file_proto_agent_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HealthCheck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealthCheck) ProtoMessage() {}
+
+func (x *HealthCheck) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HealthCheck.ProtoReflect.Descriptor instead.
+func (*HealthCheck) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *HealthCheck) GetTest() []string {
+	if x != nil {
+		return x.Test
+	}
+	return nil
+}
+
+func (x *HealthCheck) GetInterval() string {
+	if x != nil {
+		return x.Interval
+	}
+	return ""
+}
+
+func (x *HealthCheck) GetTimeout() string {
+	if x != nil {
+		return x.Timeout
+	}
+	return ""
+}
+
+func (x *HealthCheck) GetRetries() int32 {
+	if x != nil {
+		return x.Retries
+	}
+	return 0
+}
+
+func (x *HealthCheck) GetStartPeriod() string {
+	if x != nil {
+		return x.StartPeriod
+	}
+	return ""
+}
+
+// Restart policy for instances
+type RestartPolicy struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Condition     string                 `protobuf:"bytes,1,opt,name=condition,proto3" json:"condition,omitempty"`                         // Restart condition: "no", "always", "on-failure", "unless-stopped"
+	MaxAttempts   int32                  `protobuf:"varint,2,opt,name=max_attempts,json=maxAttempts,proto3" json:"max_attempts,omitempty"` // Maximum restart attempts (0 = unlimited)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestartPolicy) Reset() {
+	*x = RestartPolicy{}
+	mi := &file_proto_agent_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestartPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestartPolicy) ProtoMessage() {}
+
+func (x *RestartPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestartPolicy.ProtoReflect.Descriptor instead.
+func (*RestartPolicy) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RestartPolicy) GetCondition() string {
+	if x != nil {
+		return x.Condition
+	}
+	return ""
+}
+
+func (x *RestartPolicy) GetMaxAttempts() int32 {
+	if x != nil {
+		return x.MaxAttempts
+	}
+	return 0
+}
+
+// Network reference for deployment network assignment
+type NetworkReference struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // Network name (e.g., "backend-net")
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkReference) Reset() {
+	*x = NetworkReference{}
+	mi := &file_proto_agent_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkReference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkReference) ProtoMessage() {}
+
+func (x *NetworkReference) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkReference.ProtoReflect.Descriptor instead.
+func (*NetworkReference) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *NetworkReference) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Image source configuration for pulling images
+type ImageSource struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Alias         string                 `protobuf:"bytes,1,opt,name=alias,proto3" json:"alias,omitempty"`   // Image alias (e.g., "ubuntu/22.04")
+	Server        string                 `protobuf:"bytes,2,opt,name=server,proto3" json:"server,omitempty"` // Image server URL (e.g., "images.linuxcontainers.org")
+	Mode          string                 `protobuf:"bytes,3,opt,name=mode,proto3" json:"mode,omitempty"`     // Pull mode: "pull", "local"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImageSource) Reset() {
+	*x = ImageSource{}
+	mi := &file_proto_agent_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImageSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImageSource) ProtoMessage() {}
+
+func (x *ImageSource) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImageSource.ProtoReflect.Descriptor instead.
+func (*ImageSource) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ImageSource) GetAlias() string {
+	if x != nil {
+		return x.Alias
+	}
+	return ""
+}
+
+func (x *ImageSource) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+func (x *ImageSource) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+// Device configuration for instances (network interfaces, etc.)
+type Device struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                                                                                       // Device name (e.g., "eth0")
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`                                                                                       // Device type (e.g., "nic")
+	Properties    map[string]string      `protobuf:"bytes,3,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Device-specific properties (e.g., network: "incusbr0")
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Device) Reset() {
+	*x = Device{}
+	mi := &file_proto_agent_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Device) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Device) ProtoMessage() {}
+
+func (x *Device) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Device.ProtoReflect.Descriptor instead.
+func (*Device) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *Device) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Device) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Device) GetProperties() map[string]string {
+	if x != nil {
+		return x.Properties
+	}
+	return nil
+}
+
 // Instance specification for containerized or VM workloads
 type InstanceSpec struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -507,13 +1076,16 @@ type InstanceSpec struct {
 	Entrypoint    []string               `protobuf:"bytes,2,rep,name=entrypoint,proto3" json:"entrypoint,omitempty"`                                                                                                      // Entrypoint command to run in the instance
 	Arguments     []string               `protobuf:"bytes,3,rep,name=arguments,proto3" json:"arguments,omitempty"`                                                                                                        // Arguments for the entrypoint command
 	DriverOptions map[string]string      `protobuf:"bytes,4,rep,name=driver_options,json=driverOptions,proto3" json:"driver_options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Driver-specific configuration options
+	ImageSource   *ImageSource           `protobuf:"bytes,5,opt,name=image_source,json=imageSource,proto3" json:"image_source,omitempty"`                                                                                 // Image source configuration (server, alias, mode)
+	UserData      string                 `protobuf:"bytes,6,opt,name=user_data,json=userData,proto3" json:"user_data,omitempty"`                                                                                          // User data/cloud-init configuration (for VMs)
+	Devices       []*Device              `protobuf:"bytes,7,rep,name=devices,proto3" json:"devices,omitempty"`                                                                                                            // Device configurations (network interfaces, etc.)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *InstanceSpec) Reset() {
 	*x = InstanceSpec{}
-	mi := &file_proto_agent_proto_msgTypes[6]
+	mi := &file_proto_agent_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -525,7 +1097,7 @@ func (x *InstanceSpec) String() string {
 func (*InstanceSpec) ProtoMessage() {}
 
 func (x *InstanceSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[6]
+	mi := &file_proto_agent_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -538,7 +1110,7 @@ func (x *InstanceSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstanceSpec.ProtoReflect.Descriptor instead.
 func (*InstanceSpec) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{6}
+	return file_proto_agent_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *InstanceSpec) GetImageName() string {
@@ -569,30 +1141,51 @@ func (x *InstanceSpec) GetDriverOptions() map[string]string {
 	return nil
 }
 
-type GetJobResponse struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	JobAvailable    bool                   `protobuf:"varint,1,opt,name=job_available,json=jobAvailable,proto3" json:"job_available,omitempty"` // Whether a job is available for execution
-	Job             *Job                   `protobuf:"bytes,2,opt,name=job,proto3" json:"job,omitempty"`
-	ResponseMessage string                 `protobuf:"bytes,3,opt,name=response_message,json=responseMessage,proto3" json:"response_message,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+func (x *InstanceSpec) GetImageSource() *ImageSource {
+	if x != nil {
+		return x.ImageSource
+	}
+	return nil
 }
 
-func (x *GetJobResponse) Reset() {
-	*x = GetJobResponse{}
-	mi := &file_proto_agent_proto_msgTypes[7]
+func (x *InstanceSpec) GetUserData() string {
+	if x != nil {
+		return x.UserData
+	}
+	return ""
+}
+
+func (x *InstanceSpec) GetDevices() []*Device {
+	if x != nil {
+		return x.Devices
+	}
+	return nil
+}
+
+type GetDeploymentResponse struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	DeploymentAvailable bool                   `protobuf:"varint,1,opt,name=deployment_available,json=deploymentAvailable,proto3" json:"deployment_available,omitempty"` // Whether a deployment is available for execution
+	Deployment          *Deployment            `protobuf:"bytes,2,opt,name=deployment,proto3" json:"deployment,omitempty"`
+	ResponseMessage     string                 `protobuf:"bytes,3,opt,name=response_message,json=responseMessage,proto3" json:"response_message,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *GetDeploymentResponse) Reset() {
+	*x = GetDeploymentResponse{}
+	mi := &file_proto_agent_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetJobResponse) String() string {
+func (x *GetDeploymentResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetJobResponse) ProtoMessage() {}
+func (*GetDeploymentResponse) ProtoMessage() {}
 
-func (x *GetJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[7]
+func (x *GetDeploymentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -603,47 +1196,47 @@ func (x *GetJobResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetJobResponse.ProtoReflect.Descriptor instead.
-func (*GetJobResponse) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{7}
+// Deprecated: Use GetDeploymentResponse.ProtoReflect.Descriptor instead.
+func (*GetDeploymentResponse) Descriptor() ([]byte, []int) {
+	return file_proto_agent_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *GetJobResponse) GetJobAvailable() bool {
+func (x *GetDeploymentResponse) GetDeploymentAvailable() bool {
 	if x != nil {
-		return x.JobAvailable
+		return x.DeploymentAvailable
 	}
 	return false
 }
 
-func (x *GetJobResponse) GetJob() *Job {
+func (x *GetDeploymentResponse) GetDeployment() *Deployment {
 	if x != nil {
-		return x.Job
+		return x.Deployment
 	}
 	return nil
 }
 
-func (x *GetJobResponse) GetResponseMessage() string {
+func (x *GetDeploymentResponse) GetResponseMessage() string {
 	if x != nil {
 		return x.ResponseMessage
 	}
 	return ""
 }
 
-// Status update from Agent to Centro about job execution
+// Status update from Agent to Centro about deployment execution
 type UpdateStatusRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	JobStatus     string                 `protobuf:"bytes,3,opt,name=job_status,json=jobStatus,proto3" json:"job_status,omitempty"`             // Job status: "pending", "running", "completed", "failed"
-	StatusMessage string                 `protobuf:"bytes,4,opt,name=status_message,json=statusMessage,proto3" json:"status_message,omitempty"` // Detailed status message or error description
-	Timestamp     int64                  `protobuf:"varint,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	NodeId           string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	DeploymentId     string                 `protobuf:"bytes,2,opt,name=deployment_id,json=deploymentId,proto3" json:"deployment_id,omitempty"`
+	DeploymentStatus string                 `protobuf:"bytes,3,opt,name=deployment_status,json=deploymentStatus,proto3" json:"deployment_status,omitempty"` // Deployment status: "pending", "running", "completed", "failed"
+	StatusMessage    string                 `protobuf:"bytes,4,opt,name=status_message,json=statusMessage,proto3" json:"status_message,omitempty"`          // Detailed status message or error description
+	Timestamp        int64                  `protobuf:"varint,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *UpdateStatusRequest) Reset() {
 	*x = UpdateStatusRequest{}
-	mi := &file_proto_agent_proto_msgTypes[8]
+	mi := &file_proto_agent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -655,7 +1248,7 @@ func (x *UpdateStatusRequest) String() string {
 func (*UpdateStatusRequest) ProtoMessage() {}
 
 func (x *UpdateStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[8]
+	mi := &file_proto_agent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -668,7 +1261,7 @@ func (x *UpdateStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateStatusRequest.ProtoReflect.Descriptor instead.
 func (*UpdateStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{8}
+	return file_proto_agent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UpdateStatusRequest) GetNodeId() string {
@@ -678,16 +1271,16 @@ func (x *UpdateStatusRequest) GetNodeId() string {
 	return ""
 }
 
-func (x *UpdateStatusRequest) GetJobId() string {
+func (x *UpdateStatusRequest) GetDeploymentId() string {
 	if x != nil {
-		return x.JobId
+		return x.DeploymentId
 	}
 	return ""
 }
 
-func (x *UpdateStatusRequest) GetJobStatus() string {
+func (x *UpdateStatusRequest) GetDeploymentStatus() string {
 	if x != nil {
-		return x.JobStatus
+		return x.DeploymentStatus
 	}
 	return ""
 }
@@ -716,7 +1309,7 @@ type UpdateStatusResponse struct {
 
 func (x *UpdateStatusResponse) Reset() {
 	*x = UpdateStatusResponse{}
-	mi := &file_proto_agent_proto_msgTypes[9]
+	mi := &file_proto_agent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -728,7 +1321,7 @@ func (x *UpdateStatusResponse) String() string {
 func (*UpdateStatusResponse) ProtoMessage() {}
 
 func (x *UpdateStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[9]
+	mi := &file_proto_agent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -741,7 +1334,7 @@ func (x *UpdateStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateStatusResponse.ProtoReflect.Descriptor instead.
 func (*UpdateStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{9}
+	return file_proto_agent_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *UpdateStatusResponse) GetAcknowledged() bool {
@@ -782,7 +1375,7 @@ type InstanceData struct {
 
 func (x *InstanceData) Reset() {
 	*x = InstanceData{}
-	mi := &file_proto_agent_proto_msgTypes[10]
+	mi := &file_proto_agent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -794,7 +1387,7 @@ func (x *InstanceData) String() string {
 func (*InstanceData) ProtoMessage() {}
 
 func (x *InstanceData) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[10]
+	mi := &file_proto_agent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -807,7 +1400,7 @@ func (x *InstanceData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstanceData.ProtoReflect.Descriptor instead.
 func (*InstanceData) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{10}
+	return file_proto_agent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *InstanceData) GetInstanceId() string {
@@ -918,7 +1511,7 @@ func (x *InstanceData) GetVolumes() []string {
 type SetInstanceDataRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                   // Node ID where instance is running
-	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`                      // Job ID associated with the instance
+	DeploymentId  string                 `protobuf:"bytes,2,opt,name=deployment_id,json=deploymentId,proto3" json:"deployment_id,omitempty"` // Deployment ID associated with the instance
 	InstanceData  *InstanceData          `protobuf:"bytes,3,opt,name=instance_data,json=instanceData,proto3" json:"instance_data,omitempty"` // Instance inspection data
 	Timestamp     int64                  `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                          // Timestamp when data was collected
 	unknownFields protoimpl.UnknownFields
@@ -927,7 +1520,7 @@ type SetInstanceDataRequest struct {
 
 func (x *SetInstanceDataRequest) Reset() {
 	*x = SetInstanceDataRequest{}
-	mi := &file_proto_agent_proto_msgTypes[11]
+	mi := &file_proto_agent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -939,7 +1532,7 @@ func (x *SetInstanceDataRequest) String() string {
 func (*SetInstanceDataRequest) ProtoMessage() {}
 
 func (x *SetInstanceDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[11]
+	mi := &file_proto_agent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -952,7 +1545,7 @@ func (x *SetInstanceDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetInstanceDataRequest.ProtoReflect.Descriptor instead.
 func (*SetInstanceDataRequest) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{11}
+	return file_proto_agent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SetInstanceDataRequest) GetNodeId() string {
@@ -962,9 +1555,9 @@ func (x *SetInstanceDataRequest) GetNodeId() string {
 	return ""
 }
 
-func (x *SetInstanceDataRequest) GetJobId() string {
+func (x *SetInstanceDataRequest) GetDeploymentId() string {
 	if x != nil {
-		return x.JobId
+		return x.DeploymentId
 	}
 	return ""
 }
@@ -993,7 +1586,7 @@ type SetInstanceDataResponse struct {
 
 func (x *SetInstanceDataResponse) Reset() {
 	*x = SetInstanceDataResponse{}
-	mi := &file_proto_agent_proto_msgTypes[12]
+	mi := &file_proto_agent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1005,7 +1598,7 @@ func (x *SetInstanceDataResponse) String() string {
 func (*SetInstanceDataResponse) ProtoMessage() {}
 
 func (x *SetInstanceDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_agent_proto_msgTypes[12]
+	mi := &file_proto_agent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1018,7 +1611,7 @@ func (x *SetInstanceDataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetInstanceDataResponse.ProtoReflect.Descriptor instead.
 func (*SetInstanceDataResponse) Descriptor() ([]byte, []int) {
-	return file_proto_agent_proto_rawDescGZIP(), []int{12}
+	return file_proto_agent_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SetInstanceDataResponse) GetAcknowledged() bool {
@@ -1053,46 +1646,98 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"b\n" +
 	"\x11HeartbeatResponse\x12\"\n" +
 	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
-	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage\"(\n" +
-	"\rGetJobRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xba\x06\n" +
-	"\x03Job\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x19\n" +
-	"\bjob_name\x18\x02 \x01(\tR\ajobName\x12\x19\n" +
-	"\bjob_type\x18\x03 \x01(\tR\ajobType\x12+\n" +
+	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage\"/\n" +
+	"\x14GetDeploymentRequest\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xec\n" +
+	"\n" +
+	"\n" +
+	"Deployment\x12#\n" +
+	"\rdeployment_id\x18\x01 \x01(\tR\fdeploymentId\x12'\n" +
+	"\x0fdeployment_name\x18\x02 \x01(\tR\x0edeploymentName\x12'\n" +
+	"\x0fdeployment_type\x18\x03 \x01(\tR\x0edeploymentType\x12+\n" +
 	"\x11selected_clusters\x18\x04 \x03(\tR\x10selectedClusters\x12\x1f\n" +
 	"\vdriver_type\x18\x05 \x01(\tR\n" +
 	"driverType\x12\x18\n" +
-	"\acommand\x18\x06 \x01(\tR\acommand\x12@\n" +
-	"\x0finstance_config\x18\a \x01(\v2\x17.scheduler.InstanceSpecR\x0einstanceConfig\x12]\n" +
-	"\x15environment_variables\x18\b \x03(\v2(.scheduler.Job.EnvironmentVariablesEntryR\x14environmentVariables\x12I\n" +
+	"\acommand\x18\x06 \x01(\tR\acommand\x12#\n" +
+	"\rcommand_array\x18\x19 \x03(\tR\fcommandArray\x12@\n" +
+	"\x0finstance_config\x18\a \x01(\v2\x17.scheduler.InstanceSpecR\x0einstanceConfig\x12d\n" +
+	"\x15environment_variables\x18\b \x03(\v2/.scheduler.Deployment.EnvironmentVariablesEntryR\x14environmentVariables\x12I\n" +
 	"\x15resource_requirements\x18\t \x01(\v2\x14.scheduler.ResourcesR\x14resourceRequirements\x126\n" +
 	"\rvolume_mounts\x18\n" +
 	" \x03(\v2\x11.scheduler.VolumeR\fvolumeMounts\x12#\n" +
-	"\rworkload_type\x18\v \x01(\tR\fworkloadType\x12B\n" +
-	"\fjob_metadata\x18\f \x03(\v2\x1f.scheduler.Job.JobMetadataEntryR\vjobMetadata\x12\x1f\n" +
+	"\rworkload_type\x18\v \x01(\tR\fworkloadType\x12^\n" +
+	"\x13deployment_metadata\x18\f \x03(\v2-.scheduler.Deployment.DeploymentMetadataEntryR\x12deploymentMetadata\x12\x1f\n" +
 	"\vretry_count\x18\r \x01(\x05R\n" +
 	"retryCount\x12\x1f\n" +
 	"\vmax_retries\x18\x0e \x01(\x05R\n" +
 	"maxRetries\x12&\n" +
-	"\x0flast_retry_time\x18\x0f \x01(\x03R\rlastRetryTime\x1aG\n" +
+	"\x0flast_retry_time\x18\x0f \x01(\x03R\rlastRetryTime\x12\x1a\n" +
+	"\breplicas\x18\x10 \x01(\x05R\breplicas\x122\n" +
+	"\tplacement\x18\x11 \x01(\v2\x14.scheduler.PlacementR\tplacement\x12\x1f\n" +
+	"\vworking_dir\x18\x12 \x01(\tR\n" +
+	"workingDir\x12,\n" +
+	"\x05ports\x18\x13 \x03(\v2\x16.scheduler.PortMappingR\x05ports\x127\n" +
+	"\bsecurity\x18\x14 \x01(\v2\x1b.scheduler.SecuritySettingsR\bsecurity\x129\n" +
+	"\fhealth_check\x18\x15 \x01(\v2\x16.scheduler.HealthCheckR\vhealthCheck\x12?\n" +
+	"\x0erestart_policy\x18\x16 \x01(\v2\x18.scheduler.RestartPolicyR\rrestartPolicy\x127\n" +
+	"\bnetworks\x18\x17 \x03(\v2\x1b.scheduler.NetworkReferenceR\bnetworks\x12#\n" +
+	"\rinstance_type\x18\x18 \x01(\tR\finstanceType\x1aG\n" +
 	"\x19EnvironmentVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
-	"\x10JobMetadataEntry\x12\x10\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aE\n" +
+	"\x17DeploymentMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb7\x01\n" +
 	"\tResources\x12&\n" +
 	"\x0fmemory_limit_mb\x18\x01 \x01(\x03R\rmemoryLimitMb\x12,\n" +
 	"\x12memory_reserved_mb\x18\x02 \x01(\x03R\x10memoryReservedMb\x12&\n" +
 	"\x0fcpu_limit_cores\x18\x03 \x01(\x02R\rcpuLimitCores\x12,\n" +
-	"\x12cpu_reserved_cores\x18\x04 \x01(\x02R\x10cpuReservedCores\"g\n" +
+	"\x12cpu_reserved_cores\x18\x04 \x01(\x02R\x10cpuReservedCores\"{\n" +
 	"\x06Volume\x12\x1f\n" +
 	"\vsource_path\x18\x01 \x01(\tR\n" +
 	"sourcePath\x12\x1f\n" +
 	"\vtarget_path\x18\x02 \x01(\tR\n" +
 	"targetPath\x12\x1b\n" +
-	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\x80\x02\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnly\x12\x12\n" +
+	"\x04type\x18\x04 \x01(\tR\x04type\"I\n" +
+	"\tPlacement\x12 \n" +
+	"\vconstraints\x18\x01 \x03(\tR\vconstraints\x12\x1a\n" +
+	"\bstrategy\x18\x02 \x01(\tR\bstrategy\"m\n" +
+	"\vPortMapping\x12\x1b\n" +
+	"\thost_port\x18\x01 \x01(\x05R\bhostPort\x12%\n" +
+	"\x0econtainer_port\x18\x02 \x01(\x05R\rcontainerPort\x12\x1a\n" +
+	"\bprotocol\x18\x03 \x01(\tR\bprotocol\"\xc5\x01\n" +
+	"\x10SecuritySettings\x12\x1e\n" +
+	"\n" +
+	"privileged\x18\x01 \x01(\bR\n" +
+	"privileged\x12)\n" +
+	"\x10capabilities_add\x18\x02 \x03(\tR\x0fcapabilitiesAdd\x12+\n" +
+	"\x11capabilities_drop\x18\x03 \x03(\tR\x10capabilitiesDrop\x129\n" +
+	"\x19read_only_root_filesystem\x18\x04 \x01(\bR\x16readOnlyRootFilesystem\"\x94\x01\n" +
+	"\vHealthCheck\x12\x12\n" +
+	"\x04test\x18\x01 \x03(\tR\x04test\x12\x1a\n" +
+	"\binterval\x18\x02 \x01(\tR\binterval\x12\x18\n" +
+	"\atimeout\x18\x03 \x01(\tR\atimeout\x12\x18\n" +
+	"\aretries\x18\x04 \x01(\x05R\aretries\x12!\n" +
+	"\fstart_period\x18\x05 \x01(\tR\vstartPeriod\"P\n" +
+	"\rRestartPolicy\x12\x1c\n" +
+	"\tcondition\x18\x01 \x01(\tR\tcondition\x12!\n" +
+	"\fmax_attempts\x18\x02 \x01(\x05R\vmaxAttempts\"&\n" +
+	"\x10NetworkReference\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"O\n" +
+	"\vImageSource\x12\x14\n" +
+	"\x05alias\x18\x01 \x01(\tR\x05alias\x12\x16\n" +
+	"\x06server\x18\x02 \x01(\tR\x06server\x12\x12\n" +
+	"\x04mode\x18\x03 \x01(\tR\x04mode\"\xb2\x01\n" +
+	"\x06Device\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12A\n" +
+	"\n" +
+	"properties\x18\x03 \x03(\v2!.scheduler.Device.PropertiesEntryR\n" +
+	"properties\x1a=\n" +
+	"\x0fPropertiesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x85\x03\n" +
 	"\fInstanceSpec\x12\x1d\n" +
 	"\n" +
 	"image_name\x18\x01 \x01(\tR\timageName\x12\x1e\n" +
@@ -1100,19 +1745,23 @@ const file_proto_agent_proto_rawDesc = "" +
 	"entrypoint\x18\x02 \x03(\tR\n" +
 	"entrypoint\x12\x1c\n" +
 	"\targuments\x18\x03 \x03(\tR\targuments\x12Q\n" +
-	"\x0edriver_options\x18\x04 \x03(\v2*.scheduler.InstanceSpec.DriverOptionsEntryR\rdriverOptions\x1a@\n" +
+	"\x0edriver_options\x18\x04 \x03(\v2*.scheduler.InstanceSpec.DriverOptionsEntryR\rdriverOptions\x129\n" +
+	"\fimage_source\x18\x05 \x01(\v2\x16.scheduler.ImageSourceR\vimageSource\x12\x1b\n" +
+	"\tuser_data\x18\x06 \x01(\tR\buserData\x12+\n" +
+	"\adevices\x18\a \x03(\v2\x11.scheduler.DeviceR\adevices\x1a@\n" +
 	"\x12DriverOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x82\x01\n" +
-	"\x0eGetJobResponse\x12#\n" +
-	"\rjob_available\x18\x01 \x01(\bR\fjobAvailable\x12 \n" +
-	"\x03job\x18\x02 \x01(\v2\x0e.scheduler.JobR\x03job\x12)\n" +
-	"\x10response_message\x18\x03 \x01(\tR\x0fresponseMessage\"\xa9\x01\n" +
-	"\x13UpdateStatusRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x15\n" +
-	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12\x1d\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xac\x01\n" +
+	"\x15GetDeploymentResponse\x121\n" +
+	"\x14deployment_available\x18\x01 \x01(\bR\x13deploymentAvailable\x125\n" +
 	"\n" +
-	"job_status\x18\x03 \x01(\tR\tjobStatus\x12%\n" +
+	"deployment\x18\x02 \x01(\v2\x15.scheduler.DeploymentR\n" +
+	"deployment\x12)\n" +
+	"\x10response_message\x18\x03 \x01(\tR\x0fresponseMessage\"\xc5\x01\n" +
+	"\x13UpdateStatusRequest\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12#\n" +
+	"\rdeployment_id\x18\x02 \x01(\tR\fdeploymentId\x12+\n" +
+	"\x11deployment_status\x18\x03 \x01(\tR\x10deploymentStatus\x12%\n" +
 	"\x0estatus_message\x18\x04 \x01(\tR\rstatusMessage\x12\x1c\n" +
 	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\"e\n" +
 	"\x14UpdateStatusResponse\x12\"\n" +
@@ -1141,18 +1790,18 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\avolumes\x18\x0f \x03(\tR\avolumes\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa4\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb2\x01\n" +
 	"\x16SetInstanceDataRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x15\n" +
-	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12<\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12#\n" +
+	"\rdeployment_id\x18\x02 \x01(\tR\fdeploymentId\x12<\n" +
 	"\rinstance_data\x18\x03 \x01(\v2\x17.scheduler.InstanceDataR\finstanceData\x12\x1c\n" +
 	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp\"h\n" +
 	"\x17SetInstanceDataResponse\x12\"\n" +
 	"\facknowledged\x18\x01 \x01(\bR\facknowledged\x12)\n" +
-	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage2\xca\x02\n" +
+	"\x10response_message\x18\x02 \x01(\tR\x0fresponseMessage2\xdf\x02\n" +
 	"\x16CentroSchedulerService\x12F\n" +
-	"\tHeartbeat\x12\x1b.scheduler.HeartbeatRequest\x1a\x1c.scheduler.HeartbeatResponse\x12=\n" +
-	"\x06GetJob\x12\x18.scheduler.GetJobRequest\x1a\x19.scheduler.GetJobResponse\x12O\n" +
+	"\tHeartbeat\x12\x1b.scheduler.HeartbeatRequest\x1a\x1c.scheduler.HeartbeatResponse\x12R\n" +
+	"\rGetDeployment\x12\x1f.scheduler.GetDeploymentRequest\x1a .scheduler.GetDeploymentResponse\x12O\n" +
 	"\fUpdateStatus\x12\x1e.scheduler.UpdateStatusRequest\x1a\x1f.scheduler.UpdateStatusResponse\x12X\n" +
 	"\x0fSetInstanceData\x12!.scheduler.SetInstanceDataRequest\x1a\".scheduler.SetInstanceDataResponseB!Z\x1fgithub.com/open-scheduler/protob\x06proto3"
 
@@ -1168,51 +1817,69 @@ func file_proto_agent_proto_rawDescGZIP() []byte {
 	return file_proto_agent_proto_rawDescData
 }
 
-var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_proto_agent_proto_goTypes = []any{
 	(*HeartbeatRequest)(nil),        // 0: scheduler.HeartbeatRequest
 	(*HeartbeatResponse)(nil),       // 1: scheduler.HeartbeatResponse
-	(*GetJobRequest)(nil),           // 2: scheduler.GetJobRequest
-	(*Job)(nil),                     // 3: scheduler.Job
+	(*GetDeploymentRequest)(nil),    // 2: scheduler.GetDeploymentRequest
+	(*Deployment)(nil),              // 3: scheduler.Deployment
 	(*Resources)(nil),               // 4: scheduler.Resources
 	(*Volume)(nil),                  // 5: scheduler.Volume
-	(*InstanceSpec)(nil),            // 6: scheduler.InstanceSpec
-	(*GetJobResponse)(nil),          // 7: scheduler.GetJobResponse
-	(*UpdateStatusRequest)(nil),     // 8: scheduler.UpdateStatusRequest
-	(*UpdateStatusResponse)(nil),    // 9: scheduler.UpdateStatusResponse
-	(*InstanceData)(nil),            // 10: scheduler.InstanceData
-	(*SetInstanceDataRequest)(nil),  // 11: scheduler.SetInstanceDataRequest
-	(*SetInstanceDataResponse)(nil), // 12: scheduler.SetInstanceDataResponse
-	nil,                             // 13: scheduler.HeartbeatRequest.NodeMetadataEntry
-	nil,                             // 14: scheduler.Job.EnvironmentVariablesEntry
-	nil,                             // 15: scheduler.Job.JobMetadataEntry
-	nil,                             // 16: scheduler.InstanceSpec.DriverOptionsEntry
-	nil,                             // 17: scheduler.InstanceData.LabelsEntry
+	(*Placement)(nil),               // 6: scheduler.Placement
+	(*PortMapping)(nil),             // 7: scheduler.PortMapping
+	(*SecuritySettings)(nil),        // 8: scheduler.SecuritySettings
+	(*HealthCheck)(nil),             // 9: scheduler.HealthCheck
+	(*RestartPolicy)(nil),           // 10: scheduler.RestartPolicy
+	(*NetworkReference)(nil),        // 11: scheduler.NetworkReference
+	(*ImageSource)(nil),             // 12: scheduler.ImageSource
+	(*Device)(nil),                  // 13: scheduler.Device
+	(*InstanceSpec)(nil),            // 14: scheduler.InstanceSpec
+	(*GetDeploymentResponse)(nil),   // 15: scheduler.GetDeploymentResponse
+	(*UpdateStatusRequest)(nil),     // 16: scheduler.UpdateStatusRequest
+	(*UpdateStatusResponse)(nil),    // 17: scheduler.UpdateStatusResponse
+	(*InstanceData)(nil),            // 18: scheduler.InstanceData
+	(*SetInstanceDataRequest)(nil),  // 19: scheduler.SetInstanceDataRequest
+	(*SetInstanceDataResponse)(nil), // 20: scheduler.SetInstanceDataResponse
+	nil,                             // 21: scheduler.HeartbeatRequest.NodeMetadataEntry
+	nil,                             // 22: scheduler.Deployment.EnvironmentVariablesEntry
+	nil,                             // 23: scheduler.Deployment.DeploymentMetadataEntry
+	nil,                             // 24: scheduler.Device.PropertiesEntry
+	nil,                             // 25: scheduler.InstanceSpec.DriverOptionsEntry
+	nil,                             // 26: scheduler.InstanceData.LabelsEntry
 }
 var file_proto_agent_proto_depIdxs = []int32{
-	13, // 0: scheduler.HeartbeatRequest.node_metadata:type_name -> scheduler.HeartbeatRequest.NodeMetadataEntry
-	6,  // 1: scheduler.Job.instance_config:type_name -> scheduler.InstanceSpec
-	14, // 2: scheduler.Job.environment_variables:type_name -> scheduler.Job.EnvironmentVariablesEntry
-	4,  // 3: scheduler.Job.resource_requirements:type_name -> scheduler.Resources
-	5,  // 4: scheduler.Job.volume_mounts:type_name -> scheduler.Volume
-	15, // 5: scheduler.Job.job_metadata:type_name -> scheduler.Job.JobMetadataEntry
-	16, // 6: scheduler.InstanceSpec.driver_options:type_name -> scheduler.InstanceSpec.DriverOptionsEntry
-	3,  // 7: scheduler.GetJobResponse.job:type_name -> scheduler.Job
-	17, // 8: scheduler.InstanceData.labels:type_name -> scheduler.InstanceData.LabelsEntry
-	10, // 9: scheduler.SetInstanceDataRequest.instance_data:type_name -> scheduler.InstanceData
-	0,  // 10: scheduler.CentroSchedulerService.Heartbeat:input_type -> scheduler.HeartbeatRequest
-	2,  // 11: scheduler.CentroSchedulerService.GetJob:input_type -> scheduler.GetJobRequest
-	8,  // 12: scheduler.CentroSchedulerService.UpdateStatus:input_type -> scheduler.UpdateStatusRequest
-	11, // 13: scheduler.CentroSchedulerService.SetInstanceData:input_type -> scheduler.SetInstanceDataRequest
-	1,  // 14: scheduler.CentroSchedulerService.Heartbeat:output_type -> scheduler.HeartbeatResponse
-	7,  // 15: scheduler.CentroSchedulerService.GetJob:output_type -> scheduler.GetJobResponse
-	9,  // 16: scheduler.CentroSchedulerService.UpdateStatus:output_type -> scheduler.UpdateStatusResponse
-	12, // 17: scheduler.CentroSchedulerService.SetInstanceData:output_type -> scheduler.SetInstanceDataResponse
-	14, // [14:18] is the sub-list for method output_type
-	10, // [10:14] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	21, // 0: scheduler.HeartbeatRequest.node_metadata:type_name -> scheduler.HeartbeatRequest.NodeMetadataEntry
+	14, // 1: scheduler.Deployment.instance_config:type_name -> scheduler.InstanceSpec
+	22, // 2: scheduler.Deployment.environment_variables:type_name -> scheduler.Deployment.EnvironmentVariablesEntry
+	4,  // 3: scheduler.Deployment.resource_requirements:type_name -> scheduler.Resources
+	5,  // 4: scheduler.Deployment.volume_mounts:type_name -> scheduler.Volume
+	23, // 5: scheduler.Deployment.deployment_metadata:type_name -> scheduler.Deployment.DeploymentMetadataEntry
+	6,  // 6: scheduler.Deployment.placement:type_name -> scheduler.Placement
+	7,  // 7: scheduler.Deployment.ports:type_name -> scheduler.PortMapping
+	8,  // 8: scheduler.Deployment.security:type_name -> scheduler.SecuritySettings
+	9,  // 9: scheduler.Deployment.health_check:type_name -> scheduler.HealthCheck
+	10, // 10: scheduler.Deployment.restart_policy:type_name -> scheduler.RestartPolicy
+	11, // 11: scheduler.Deployment.networks:type_name -> scheduler.NetworkReference
+	24, // 12: scheduler.Device.properties:type_name -> scheduler.Device.PropertiesEntry
+	25, // 13: scheduler.InstanceSpec.driver_options:type_name -> scheduler.InstanceSpec.DriverOptionsEntry
+	12, // 14: scheduler.InstanceSpec.image_source:type_name -> scheduler.ImageSource
+	13, // 15: scheduler.InstanceSpec.devices:type_name -> scheduler.Device
+	3,  // 16: scheduler.GetDeploymentResponse.deployment:type_name -> scheduler.Deployment
+	26, // 17: scheduler.InstanceData.labels:type_name -> scheduler.InstanceData.LabelsEntry
+	18, // 18: scheduler.SetInstanceDataRequest.instance_data:type_name -> scheduler.InstanceData
+	0,  // 19: scheduler.CentroSchedulerService.Heartbeat:input_type -> scheduler.HeartbeatRequest
+	2,  // 20: scheduler.CentroSchedulerService.GetDeployment:input_type -> scheduler.GetDeploymentRequest
+	16, // 21: scheduler.CentroSchedulerService.UpdateStatus:input_type -> scheduler.UpdateStatusRequest
+	19, // 22: scheduler.CentroSchedulerService.SetInstanceData:input_type -> scheduler.SetInstanceDataRequest
+	1,  // 23: scheduler.CentroSchedulerService.Heartbeat:output_type -> scheduler.HeartbeatResponse
+	15, // 24: scheduler.CentroSchedulerService.GetDeployment:output_type -> scheduler.GetDeploymentResponse
+	17, // 25: scheduler.CentroSchedulerService.UpdateStatus:output_type -> scheduler.UpdateStatusResponse
+	20, // 26: scheduler.CentroSchedulerService.SetInstanceData:output_type -> scheduler.SetInstanceDataResponse
+	23, // [23:27] is the sub-list for method output_type
+	19, // [19:23] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_proto_agent_proto_init() }
@@ -1226,7 +1893,7 @@ func file_proto_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_agent_proto_rawDesc), len(file_proto_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   18,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

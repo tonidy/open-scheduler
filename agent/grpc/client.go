@@ -98,7 +98,7 @@ func (c *GrpcClient) SendHeartbeat(ctx context.Context, nodeID string, token str
 	return resp, nil
 }
 
-func (c *GrpcClient) GetJob(ctx context.Context, nodeID string, token string) (*pb.GetJobResponse, error) {
+func (c *GrpcClient) GetDeployment(ctx context.Context, nodeID string, token string) (*pb.GetDeploymentResponse, error) {
 	c.mu.RLock()
 	client := c.client
 	c.mu.RUnlock()
@@ -112,23 +112,23 @@ func (c *GrpcClient) GetJob(ctx context.Context, nodeID string, token string) (*
 	})
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	req := &pb.GetJobRequest{
+	req := &pb.GetDeploymentRequest{
 		NodeId: nodeID,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	resp, err := client.GetJob(ctx, req)
+	resp, err := client.GetDeployment(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("GetJob RPC failed: %w", err)
+		return nil, fmt.Errorf("GetDeployment RPC failed: %w", err)
 	}
 
-	// Job details logged by GetJobService
+	// Deployment details logged by GetDeploymentService
 	return resp, nil
 }
 
-func (c *GrpcClient) UpdateStatus(ctx context.Context, nodeID string, token string, jobID string, status string, detail string, timestamp int64) (*pb.UpdateStatusResponse, error) {
+func (c *GrpcClient) UpdateStatus(ctx context.Context, nodeID string, token string, deploymentID string, status string, detail string, timestamp int64) (*pb.UpdateStatusResponse, error) {
 	c.mu.RLock()
 	client := c.client
 	c.mu.RUnlock()
@@ -143,11 +143,11 @@ func (c *GrpcClient) UpdateStatus(ctx context.Context, nodeID string, token stri
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	req := &pb.UpdateStatusRequest{
-		NodeId:        nodeID,
-		JobId:         jobID,
-		JobStatus:     status,
-		StatusMessage: detail,
-		Timestamp:     timestamp,
+		NodeId:           nodeID,
+		DeploymentId:     deploymentID,
+		DeploymentStatus: status,
+		StatusMessage:    detail,
+		Timestamp:        timestamp,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -163,7 +163,7 @@ func (c *GrpcClient) UpdateStatus(ctx context.Context, nodeID string, token stri
 	return resp, nil
 }
 
-func (c *GrpcClient) SetInstanceData(ctx context.Context, nodeID string, token string, jobID string, instanceData *pb.InstanceData, timestamp int64) (*pb.SetInstanceDataResponse, error) {
+func (c *GrpcClient) SetInstanceData(ctx context.Context, nodeID string, token string, deploymentID string, instanceData *pb.InstanceData, timestamp int64) (*pb.SetInstanceDataResponse, error) {
 	c.mu.RLock()
 	client := c.client
 	c.mu.RUnlock()
@@ -179,7 +179,7 @@ func (c *GrpcClient) SetInstanceData(ctx context.Context, nodeID string, token s
 
 	req := &pb.SetInstanceDataRequest{
 		NodeId:       nodeID,
-		JobId:        jobID,
+		DeploymentId: deploymentID,
 		InstanceData: instanceData,
 		Timestamp:    timestamp,
 	}

@@ -2,15 +2,15 @@
   import { navigate } from 'svelte-routing';
   import { Card, Heading, Button, Label, Input, Select, Textarea, Alert } from 'flowbite-svelte';
   import { ArrowLeftOutline } from 'flowbite-svelte-icons';
-  import { jobs } from '../api/client';
+  import { deployments } from '../api/client';
 
   let loading = false;
   let error = '';
   let success = '';
 
   // Form fields
-  let jobName = '';
-  let jobType = 'service';
+  let deploymentName = '';
+  let deploymentType = 'service';
   let driver = 'podman';
   let workloadType = 'container';
   let command = '';
@@ -36,15 +36,15 @@
     success = '';
     loading = true;
 
-    if (!jobName) {
-      error = 'Job name is required';
+    if (!deploymentName) {
+      error = 'Deployment name is required';
       loading = false;
       return;
     }
 
-    const jobData = {
-      job_name: jobName,
-      job_type: jobType,
+    const deploymentData = {
+      deployment_name: deploymentName,
+      deployment_type: deploymentType,
       driver: driver,
       workload_type: workloadType,
       command: command,
@@ -58,13 +58,13 @@
     };
 
     try {
-      const response = await jobs.create(jobData);
-      success = `Job created successfully! Job ID: ${response.job_id}`;
+      const response = await deployments.create(deploymentData);
+      success = `Deployment created successfully! Deployment ID: ${response.deployment_id}`;
       setTimeout(() => {
-        navigate(`/jobs/${response.job_id}`);
+        navigate(`/deployments/${response.deployment_id}`);
       }, 1500);
     } catch (err) {
-      error = err.message || 'Failed to create job';
+      error = err.message || 'Failed to create deployment';
     } finally {
       loading = false;
     }
@@ -73,11 +73,11 @@
 
 <div class="space-y-6">
   <div class="flex items-center gap-4">
-    <Button color="light" on:click={() => navigate('/jobs')}>
+    <Button color="light" on:click={() => navigate('/deployments')}>
       <ArrowLeftOutline class="w-4 h-4 mr-2" />
       Back
     </Button>
-    <Heading tag="h2" class="text-2xl font-bold">Create New Job</Heading>
+    <Heading tag="h2" class="text-2xl font-bold">Create New Deployment</Heading>
   </div>
 
   {#if error}
@@ -95,25 +95,25 @@
   <Card>
     <form on:submit|preventDefault={handleSubmit} class="space-y-6">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Job Name -->
+        <!-- Deployment Name -->
         <div>
-          <Label for="job_name" class="mb-2">Job Name *</Label>
+          <Label for="deployment_name" class="mb-2">Deployment Name *</Label>
           <Input
-            id="job_name"
+            id="deployment_name"
             type="text"
-            bind:value={jobName}
+            bind:value={deploymentName}
             required
-            placeholder="my-job"
+            placeholder="my-deployment"
           />
         </div>
 
-        <!-- Job Type -->
+        <!-- Deployment Type -->
         <div>
-          <Label for="job_type" class="mb-2">Job Type</Label>
+          <Label for="deployment_type" class="mb-2">Deployment Type</Label>
           <Input
-            id="job_type"
+            id="deployment_type"
             type="text"
-            bind:value={jobType}
+            bind:value={deploymentType}
             placeholder="service"
           />
         </div>
@@ -181,9 +181,9 @@
 
       <div class="flex gap-4">
         <Button type="submit" disabled={loading}>
-          {loading ? 'Creating...' : 'Create Job'}
+          {loading ? 'Creating...' : 'Create Deployment'}
         </Button>
-        <Button color="light" on:click={() => navigate('/jobs')}>
+        <Button color="light" on:click={() => navigate('/deployments')}>
           Cancel
         </Button>
       </div>

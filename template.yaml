@@ -1,0 +1,120 @@
+# Meta-Orchestration Manifest v1.1
+# "Pure App" Configuration - Nodes are now managed externally by the orchestrator
+
+metadata:
+  project: "hybrid-cloud-app"
+  version: "1.0.0"
+
+# -----------------------------------------------------------------------------
+# 1. SHARED RESOURCES
+# -----------------------------------------------------------------------------
+networks:
+  - name: "backend-net"
+    driver: "overlay"
+    subnet: "172.16.0.0/24"
+
+volumes:
+  - name: "global-db-data"
+    driver: "local"
+
+# -----------------------------------------------------------------------------
+# 2. WORKLOAD SPECIFICATIONS
+# The orchestrator matches these constraints against its known node inventory.
+# -----------------------------------------------------------------------------
+services:
+
+  # --- Type A: Standard OCI Container ---
+  # Target: Nodes running Podman or Containerd
+  - name: "api-gateway"
+    type: "oci-container"
+    replicas: 2
+    
+    # Placement: We ask for capabilities, not specific IPs.
+    placement:
+      constraints:
+        - "node.driver in [podman, containerd]"
+        - "node.label.zone == us-east"
+      strategy: "spread"
+    
+    spec:
+      image: "nginx:alpine"
+      command: ["nginx", "-g", "daemon off;"]
+      working_dir: "/usr/share/nginx/html"
+      
+      ports:
+        - host: 8080
+          container: 80
+          protocol: "tcp"
+      
+      env:
+        - name: "ENV"
+          value: "production"
+        - name: "LOG_LEVEL"
+          value: "warn"
+
+      mounts:
+        - type: bind
+          source: ./config/nginx.conf
+          target: /etc/nginx/nginx.conf
+          read_only: true
+
+      resources:
+        cpu_limit: "0.5"
+        mem_limit: "256MB"
+      
+      security:
+        privileged: false
+        capabilities:
+          add: ["NET_BIND_SERVICE"]
+          drop: ["ALL"]
+        read_only_root_filesystem: true
+
+      health_check:
+        test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+        interval: 30s
+        timeout: 5s
+        retries: 3
+        start_period: 5s
+
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        
+      networks: ["backend-net"]
+
+  # --- Type B: System Instance (VM/Container) ---
+  # Target: Nodes running Incus (LXD)
+  - name: "legacy-db-server"
+    type: "system-instance"
+    replicas: 1
+    
+    # Placement: Specifically request a VM capability
+    placement:
+      constraints:
+        - "node.driver == incus"
+        - "node.capability == vm"
+    
+    spec:
+      source:
+        alias: "ubuntu/22.04"
+        server: "images.linuxcontainers.org"
+        mode: "pull"
+      
+      instance_type: "virtual-machine"
+      
+      user_data: |
+        #cloud-config
+        packages:
+          - postgresql
+        runcmd:
+          - systemctl start postgresql
+      
+      config:
+        limits.cpu: "2"
+        limits.memory: "4GB"
+      
+      devices:
+        eth0:
+          name: eth0
+          network: "incusbr0"
+          type: nic

@@ -20,7 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	CentroSchedulerService_Heartbeat_FullMethodName       = "/scheduler.CentroSchedulerService/Heartbeat"
-	CentroSchedulerService_GetJob_FullMethodName          = "/scheduler.CentroSchedulerService/GetJob"
+	CentroSchedulerService_GetDeployment_FullMethodName   = "/scheduler.CentroSchedulerService/GetDeployment"
 	CentroSchedulerService_UpdateStatus_FullMethodName    = "/scheduler.CentroSchedulerService/UpdateStatus"
 	CentroSchedulerService_SetInstanceData_FullMethodName = "/scheduler.CentroSchedulerService/SetInstanceData"
 )
@@ -33,9 +33,9 @@ const (
 type CentroSchedulerServiceClient interface {
 	// Agent sends periodic heartbeat to report node health and available resources
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
-	// Agent requests an available job from Centro for execution
-	GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error)
-	// Agent sends job execution status updates to Centro
+	// Agent requests an available deployment from Centro for execution
+	GetDeployment(ctx context.Context, in *GetDeploymentRequest, opts ...grpc.CallOption) (*GetDeploymentResponse, error)
+	// Agent sends deployment execution status updates to Centro
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 	// Agent sends instance inspection data after instance is running
 	SetInstanceData(ctx context.Context, in *SetInstanceDataRequest, opts ...grpc.CallOption) (*SetInstanceDataResponse, error)
@@ -59,10 +59,10 @@ func (c *centroSchedulerServiceClient) Heartbeat(ctx context.Context, in *Heartb
 	return out, nil
 }
 
-func (c *centroSchedulerServiceClient) GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error) {
+func (c *centroSchedulerServiceClient) GetDeployment(ctx context.Context, in *GetDeploymentRequest, opts ...grpc.CallOption) (*GetDeploymentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetJobResponse)
-	err := c.cc.Invoke(ctx, CentroSchedulerService_GetJob_FullMethodName, in, out, cOpts...)
+	out := new(GetDeploymentResponse)
+	err := c.cc.Invoke(ctx, CentroSchedulerService_GetDeployment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -97,9 +97,9 @@ func (c *centroSchedulerServiceClient) SetInstanceData(ctx context.Context, in *
 type CentroSchedulerServiceServer interface {
 	// Agent sends periodic heartbeat to report node health and available resources
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
-	// Agent requests an available job from Centro for execution
-	GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error)
-	// Agent sends job execution status updates to Centro
+	// Agent requests an available deployment from Centro for execution
+	GetDeployment(context.Context, *GetDeploymentRequest) (*GetDeploymentResponse, error)
+	// Agent sends deployment execution status updates to Centro
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
 	// Agent sends instance inspection data after instance is running
 	SetInstanceData(context.Context, *SetInstanceDataRequest) (*SetInstanceDataResponse, error)
@@ -116,8 +116,8 @@ type UnimplementedCentroSchedulerServiceServer struct{}
 func (UnimplementedCentroSchedulerServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
 }
-func (UnimplementedCentroSchedulerServiceServer) GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetJob not implemented")
+func (UnimplementedCentroSchedulerServiceServer) GetDeployment(context.Context, *GetDeploymentRequest) (*GetDeploymentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDeployment not implemented")
 }
 func (UnimplementedCentroSchedulerServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
@@ -165,20 +165,20 @@ func _CentroSchedulerService_Heartbeat_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CentroSchedulerService_GetJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetJobRequest)
+func _CentroSchedulerService_GetDeployment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDeploymentRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(CentroSchedulerServiceServer).GetJob(ctx, in)
+		return srv.(CentroSchedulerServiceServer).GetDeployment(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: CentroSchedulerService_GetJob_FullMethodName,
+		FullMethod: CentroSchedulerService_GetDeployment_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CentroSchedulerServiceServer).GetJob(ctx, req.(*GetJobRequest))
+		return srv.(CentroSchedulerServiceServer).GetDeployment(ctx, req.(*GetDeploymentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -231,8 +231,8 @@ var CentroSchedulerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _CentroSchedulerService_Heartbeat_Handler,
 		},
 		{
-			MethodName: "GetJob",
-			Handler:    _CentroSchedulerService_GetJob_Handler,
+			MethodName: "GetDeployment",
+			Handler:    _CentroSchedulerService_GetDeployment_Handler,
 		},
 		{
 			MethodName: "UpdateStatus",

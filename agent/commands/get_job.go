@@ -9,32 +9,32 @@ import (
 	"github.com/open-scheduler/agent/service/instance"
 )
 
-type GetJobCommand struct {
-	service *job.GetJobService
+type GetDeploymentCommand struct {
+	service *job.GetDeploymentService
 }
 
-func NewGetJobCommand(grpcClient *agentgrpc.GrpcClient, instanceService *instance.SetInstanceDataService) *GetJobCommand {
-	service, err := job.NewGetJobService(grpcClient, instanceService)
+func NewGetDeploymentCommand(grpcClient *agentgrpc.GrpcClient, instanceService *instance.SetInstanceDataService) *GetDeploymentCommand {
+	service, err := job.NewGetDeploymentService(grpcClient, instanceService)
 	if err != nil {
-		log.Fatalf("[GetJobCommand] Failed to create service: %v", err)
+		log.Fatalf("[GetDeploymentCommand] Failed to create service: %v", err)
 	}
-	return &GetJobCommand{
+	return &GetDeploymentCommand{
 		service: service,
 	}
 }
 
-func (g *GetJobCommand) Execute(ctx context.Context, nodeID string, token string) error {
+func (g *GetDeploymentCommand) Execute(ctx context.Context, nodeID string, token string) error {
 	return g.service.Execute(ctx, nodeID, token)
 }
 
-func (g *GetJobCommand) Name() string {
-	return "get_job"
+func (g *GetDeploymentCommand) Name() string {
+	return "get_deployment"
 }
 
-func (g *GetJobCommand) String() string {
-	return "GetJobCommand"
+func (g *GetDeploymentCommand) String() string {
+	return "GetDeploymentCommand"
 }
 
-func (g *GetJobCommand) IntervalSeconds() int {
+func (g *GetDeploymentCommand) IntervalSeconds() int {
 	return 15
 }

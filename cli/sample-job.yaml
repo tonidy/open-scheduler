@@ -1,26 +1,60 @@
-# Example Job spec for Open Scheduler (based on proto Job definition)
-job_id: "job2-demo"
-job_name: "Job 22 Demo"
-job_type: "single"
-driver_type: "podman"
-command: "/bin/sh -c 'echo hello world'"
-instance_config:
-  image_name: "docker.io/library/alpine:latest"
-  driver_options:
-    restart_policy: "OnFailure"
-environment_variables:
-  ENV: "production"
-  DEBUG: "false"
-resource_requirements:
-  memory_limit_mb: 128
-  memory_reserved_mb: 64
-  cpu_limit_cores: 0.5
-  cpu_reserved_cores: 0.25
-workload_type: "container"
-job_metadata:
-  creator: "admin"
-  description: "A simple test batch job"
-retry_count: 0
-max_retries: 3
-last_retry_time: 0
+metadata:
+  project: "sample-app"
+  version: "1.0.0"
 
+services:
+  # Simple container service example
+  - name: "sample-web-app"
+    type: "oci-container"
+    replicas: 100
+    
+    placement:
+      constraints:
+        - "node.driver == podman"
+      strategy: "spread"
+    
+    spec:
+      image: "docker.io/library/nginx:latest"
+      command: ["/bin/sh", "-c", "echo 'Hello World'"]
+      working_dir: "/tmp"
+      
+      ports:
+        - host: 8080
+          container: 80
+          protocol: "tcp"
+      
+      env:
+        - name: "ENV"
+          value: "production"
+        - name: "DEBUG"
+          value: "false"
+      
+      mounts:
+        - type: bind
+          source: ./data
+          target: /app/data
+          read_only: false
+      
+      resources:
+        cpu_limit: "0.5"
+        mem_limit: "256MB"
+      
+      security:
+        privileged: false
+        capabilities:
+          add: ["NET_BIND_SERVICE"]
+          drop: ["ALL"]
+        read_only_root_filesystem: false
+      
+      health_check:
+        test: ["CMD-SHELL", "echo 'healthy' || exit 1"]
+        interval: 30s
+        timeout: 5s
+        retries: 3
+        start_period: 5s
+      
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      
+      networks: ["backend-net"]

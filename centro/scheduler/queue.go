@@ -34,120 +34,120 @@ func (q *Queue) StartScheduler(ctx context.Context) {
 }
 
 func (q *Queue) moveFailedJobsToQueue(ctx context.Context) {
-	failedJobs, err := q.storage.GetAllFailedJobs(ctx)
+	failedDeployments, err := q.storage.GetAllFailedDeployments(ctx)
 	if err != nil {
-		log.Printf("[Scheduler] Failed to get all failed jobs: %v", err)
+		log.Printf("[Scheduler] Failed to get all failed deployments: %v", err)
 		return
 	}
 
-	for _, job := range failedJobs {
+	for _, deployment := range failedDeployments {
 
-		// Check if job has exceeded max retries (if max_retries > 0)
-		if job.MaxRetries > 0 && job.RetryCount >= job.MaxRetries {
-			log.Printf("[Scheduler] Job %s exceeded max retries (%d/%d), moving to history",
-				job.JobId, job.RetryCount, job.MaxRetries)
+		// Check if deployment has exceeded max retries (if max_retries > 0)
+		if deployment.MaxRetries > 0 && deployment.RetryCount >= deployment.MaxRetries {
+			log.Printf("[Scheduler] Deployment %s exceeded max retries (%d/%d), moving to history",
+				deployment.DeploymentId, deployment.RetryCount, deployment.MaxRetries)
 
-			// Save to job history as permanently failed
-			jobStatus := &etcdstorage.JobStatus{
-				Job:       job,
-				Status:    "failed",
-				Detail:    fmt.Sprintf("Job exceeded maximum retry limit (%d retries)", job.MaxRetries),
-				UpdatedAt: time.Now(),
+			// Save to deployment history as permanently failed
+			deploymentStatus := &etcdstorage.DeploymentStatus{
+				Deployment: deployment,
+				Status:     "failed",
+				Detail:     fmt.Sprintf("Deployment exceeded maximum retry limit (%d retries)", deployment.MaxRetries),
+				UpdatedAt:  time.Now(),
 			}
-			if err := q.storage.SaveJobHistory(ctx, job.JobId, jobStatus); err != nil {
-				log.Printf("[Scheduler] Failed to save permanently failed job to history: %v", err)
+			if err := q.storage.SaveDeploymentHistory(ctx, deployment.DeploymentId, deploymentStatus); err != nil {
+				log.Printf("[Scheduler] Failed to save permanently failed deployment to history: %v", err)
 			}
 
 			// Save event
-			if err := q.storage.SaveJobEvent(ctx, job.JobId,
-				fmt.Sprintf("[%s] Job permanently failed after %d retries (max: %d)",
-					time.Now().Format(time.RFC3339), job.RetryCount, job.MaxRetries)); err != nil {
-				log.Printf("[Scheduler] Failed to save job event: %v", err)
+			if err := q.storage.SaveDeploymentEvent(ctx, deployment.DeploymentId,
+				fmt.Sprintf("[%s] Deployment permanently failed after %d retries (max: %d)",
+					time.Now().Format(time.RFC3339), deployment.RetryCount, deployment.MaxRetries)); err != nil {
+				log.Printf("[Scheduler] Failed to save deployment event: %v", err)
 			}
 
 			// Delete from failed queue
-			if err := q.storage.DeleteFailedJob(ctx, job.JobId); err != nil {
-				log.Printf("[Scheduler] Failed to delete failed job: %v", err)
+			if err := q.storage.DeleteFailedDeployment(ctx, deployment.DeploymentId); err != nil {
+				log.Printf("[Scheduler] Failed to delete failed deployment: %v", err)
 			}
 			continue
 		}
 
-		log.Printf("[Scheduler] Retrying failed job %s (attempt %d/%d)",
-			job.JobId, job.RetryCount+1, job.MaxRetries)
-		job.RetryCount = job.RetryCount + 1
-		job.LastRetryTime = time.Now().Unix()
-		if err := q.storage.EnqueueJob(ctx, job); err != nil {
-			log.Printf("[Scheduler] Failed to enqueue job: %v", err)
+		log.Printf("[Scheduler] Retrying failed deployment %s (attempt %d/%d)",
+			deployment.DeploymentId, deployment.RetryCount+1, deployment.MaxRetries)
+		deployment.RetryCount = deployment.RetryCount + 1
+		deployment.LastRetryTime = time.Now().Unix()
+		if err := q.storage.EnqueueDeployment(ctx, deployment); err != nil {
+			log.Printf("[Scheduler] Failed to enqueue deployment: %v", err)
 			continue
 		}
 
 		// Save retry event
-		if err := q.storage.SaveJobEvent(ctx, job.JobId,
-			fmt.Sprintf("[%s] Retrying job (attempt %d)",
-				time.Now().Format(time.RFC3339), job.RetryCount)); err != nil {
+		if err := q.storage.SaveDeploymentEvent(ctx, deployment.DeploymentId,
+			fmt.Sprintf("[%s] Retrying deployment (attempt %d)",
+				time.Now().Format(time.RFC3339), deployment.RetryCount)); err != nil {
 			log.Printf("[Scheduler] Failed to save retry event: %v", err)
 		}
 
-		if err := q.storage.DeleteFailedJob(ctx, job.JobId); err != nil {
-			log.Printf("[Scheduler] Failed to delete failed job: %v", err)
+		if err := q.storage.DeleteFailedDeployment(ctx, deployment.DeploymentId); err != nil {
+			log.Printf("[Scheduler] Failed to delete failed deployment: %v", err)
 			continue
 		}
 	}
 }
 
-// checkStaleJobs detects jobs that are stuck in "assigned" or "running" state
+// checkStaleJobs detects deployments that are stuck in "assigned" or "running" state
 // without updates for too long and moves them back to the queue or failed queue
 func (q *Queue) checkStaleJobs(ctx context.Context) {
-	activeJobs, err := q.storage.GetAllActiveJobs(ctx)
+	activeDeployments, err := q.storage.GetAllActiveDeployments(ctx)
 	if err != nil {
-		log.Printf("[Scheduler] Failed to get active jobs: %v", err)
+		log.Printf("[Scheduler] Failed to get active deployments: %v", err)
 		return
 	}
 
 	now := time.Now()
 	// Timeout thresholds
-	assignedTimeout := 5 * time.Minute // Job assigned but never started running
-	runningTimeout := 30 * time.Minute // Job running but no status updates
+	assignedTimeout := 5 * time.Minute // Deployment assigned but never started running
+	runningTimeout := 30 * time.Minute // Deployment running but no status updates
 
-	for jobID, jobStatus := range activeJobs {
-		timeSinceUpdate := now.Sub(jobStatus.UpdatedAt)
+	for deploymentID, deploymentStatus := range activeDeployments {
+		timeSinceUpdate := now.Sub(deploymentStatus.UpdatedAt)
 
-		// Check if job is stale based on its status
+		// Check if deployment is stale based on its status
 		isStale := false
 		reason := ""
 
-		if jobStatus.Status == "assigned" && timeSinceUpdate > assignedTimeout {
+		if deploymentStatus.Status == "assigned" && timeSinceUpdate > assignedTimeout {
 			isStale = true
-			reason = fmt.Sprintf("Job assigned to node %s but never started running (timeout: %v)",
-				jobStatus.NodeID, assignedTimeout)
-		} else if jobStatus.Status == "running" && timeSinceUpdate > runningTimeout {
+			reason = fmt.Sprintf("Deployment assigned to node %s but never started running (timeout: %v)",
+				deploymentStatus.NodeID, assignedTimeout)
+		} else if deploymentStatus.Status == "running" && timeSinceUpdate > runningTimeout {
 			isStale = true
-			reason = fmt.Sprintf("Job running on node %s with no status updates (timeout: %v)",
-				jobStatus.NodeID, runningTimeout)
+			reason = fmt.Sprintf("Deployment running on node %s with no status updates (timeout: %v)",
+				deploymentStatus.NodeID, runningTimeout)
 		}
 
 		if isStale {
-			log.Printf("[Scheduler] Detected stale job %s: %s", jobID, reason)
+			log.Printf("[Scheduler] Detected stale deployment %s: %s", deploymentID, reason)
 
 			// Save event
-			if err := q.storage.SaveJobEvent(ctx, jobID,
-				fmt.Sprintf("[%s] Job detected as stale: %s",
+			if err := q.storage.SaveDeploymentEvent(ctx, deploymentID,
+				fmt.Sprintf("[%s] Deployment detected as stale: %s",
 					time.Now().Format(time.RFC3339), reason)); err != nil {
-				log.Printf("[Scheduler] Failed to save stale job event: %v", err)
+				log.Printf("[Scheduler] Failed to save stale deployment event: %v", err)
 			}
 
-			// Move job to failed queue for retry
-			if jobStatus.Job != nil {
-				if err := q.storage.EnqueueFailedJob(ctx, jobStatus.Job); err != nil {
-					log.Printf("[Scheduler] Failed to enqueue stale job: %v", err)
+			// Move deployment to failed queue for retry
+			if deploymentStatus.Deployment != nil {
+				if err := q.storage.EnqueueFailedDeployment(ctx, deploymentStatus.Deployment); err != nil {
+					log.Printf("[Scheduler] Failed to enqueue stale deployment: %v", err)
 				} else {
-					log.Printf("[Scheduler] Moved stale job %s to failed queue for retry", jobID)
+					log.Printf("[Scheduler] Moved stale deployment %s to failed queue for retry", deploymentID)
 				}
 			}
 
-			// Remove from active jobs
-			if err := q.storage.DeleteJobActive(ctx, jobID); err != nil {
-				log.Printf("[Scheduler] Failed to delete stale active job: %v", err)
+			// Remove from active deployments
+			if err := q.storage.DeleteDeploymentActive(ctx, deploymentID); err != nil {
+				log.Printf("[Scheduler] Failed to delete stale active deployment: %v", err)
 			}
 		}
 	}

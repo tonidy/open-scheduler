@@ -7,21 +7,22 @@ import (
 	pb "github.com/open-scheduler/proto"
 )
 
-// SeedTestData adds sample test jobs to the Centro server for development/testing purposes
+// SeedTestData adds sample test deployments to the Centro server for development/testing purposes
 func SeedTestData(centroServer *centrogrpc.CentroServer) {
-	log.Println("[Centro] Adding test jobs to the queue...")
+	log.Println("[Centro] Adding test deployments to the queue...")
 
-	testJob := &pb.Job{
-		JobId:            "test-job-1",
-		JobName:          "Test Job 1",
-		JobType:          "batch",
+	testDeployment := &pb.Deployment{
+		DeploymentId:     "test-deployment-1",
+		DeploymentName:   "Test Deployment 1",
+		DeploymentType:   "batch",
 		SelectedClusters: []string{"default"},
 		DriverType:       "podman",
 		WorkloadType:     "container",
+		Replicas:         1,
 		InstanceConfig: &pb.InstanceSpec{
 			ImageName: "docker.io/library/alpine:latest",
 			DriverOptions: map[string]string{
-				"command": "echo 'Hello from test job!'",
+				"command": "echo 'Hello from test deployment!'",
 			},
 		},
 		EnvironmentVariables: map[string]string{
@@ -33,25 +34,25 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 			CpuLimitCores:    1.0,
 			CpuReservedCores: 0.5,
 		},
-		JobMetadata: map[string]string{
+		DeploymentMetadata: map[string]string{
 			"owner": "system",
 		},
-		RetryCount:       0,
-		MaxRetries:       3,				
+		RetryCount: 0,
+		MaxRetries: 3,
 	}
-	centroServer.AddJob(testJob)
+	centroServer.AddDeployment(testDeployment)
 
-	testJob2 := &pb.Job{
-		JobId:            "test-job-2",
-		JobName:          "Test Job 2",
-		JobType:          "batch",
-		SelectedClusters: []string{"test-cluster"},
+	testDeployment2 := &pb.Deployment{
+		DeploymentId:     "test-deployment-2",
+		DeploymentName:   "Test Deployment 2",
+		DeploymentType:   "batch",
+		SelectedClusters: []string{"sg-cluster"},
 		DriverType:       "podman",
 		WorkloadType:     "container",
 		InstanceConfig: &pb.InstanceSpec{
 			ImageName: "docker.io/library/ubuntu:latest",
 			DriverOptions: map[string]string{
-				"command": "echo 'Hello from test job 2!'",
+				"command": "echo 'Hello from test deployment 2!'",
 			},
 		},
 		ResourceRequirements: &pb.Resources{
@@ -60,10 +61,10 @@ func SeedTestData(centroServer *centrogrpc.CentroServer) {
 			CpuLimitCores:    1.0,
 			CpuReservedCores: 0.5,
 		},
-		RetryCount:       0,
-		MaxRetries:       3,				
+		RetryCount: 0,
+		MaxRetries: 3,
 	}
-	centroServer.AddJob(testJob2)
+	centroServer.AddDeployment(testDeployment2)
 
-	log.Println("[Centro] Test jobs added")
+	log.Println("[Centro] Test deployments added")
 }

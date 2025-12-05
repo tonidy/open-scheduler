@@ -47,41 +47,41 @@ func (s *SetInstanceDataService) Execute(ctx context.Context, nodeID string, tok
 	log.Printf("[SetInstanceDataService] Found %d instances", len(instances))
 
 	for _, instance := range instances {
-		jobID, hasJobID := instance.Labels["open-scheduler.job-id"]
-		if !hasJobID || jobID == "" {
-			log.Printf("[SetInstanceDataService] Instance %s has no job-id label, skipping", instance.InstanceId)
+		deploymentID, hasDeploymentID := instance.Labels["open-scheduler.deployment-id"]
+		if !hasDeploymentID || deploymentID == "" {
+			log.Printf("[SetInstanceDataService] Instance %s has no deployment-id label, skipping", instance.InstanceId)
 			continue
 		}
 
-		log.Printf("[SetInstanceDataService] Sending instance data for job %s, instance %s", jobID, instance.InstanceId)
+		log.Printf("[SetInstanceDataService] Sending instance data for deployment %s, instance %s", deploymentID, instance.InstanceId)
 
 		resp, err := s.grpcClient.SetInstanceData(
 			ctx,
 			s.nodeID,
 			s.token,
-			jobID,
+			deploymentID,
 			instance,
 			time.Now().Unix(),
 		)
 
 		if err != nil {
-			log.Printf("[SetInstanceDataService] Failed to send instance data for job %s: %v", jobID, err)
+			log.Printf("[SetInstanceDataService] Failed to send instance data for deployment %s: %v", deploymentID, err)
 			continue
 		}
 
 		if !resp.Acknowledged {
-			log.Printf("[SetInstanceDataService] Instance data rejected for job %s: %s", jobID, resp.ResponseMessage)
+			log.Printf("[SetInstanceDataService] Instance data rejected for deployment %s: %s", deploymentID, resp.ResponseMessage)
 			continue
 		}
 
-		log.Printf("[SetInstanceDataService] Instance data sent successfully for job %s: %s", jobID, resp.ResponseMessage)
+		log.Printf("[SetInstanceDataService] Instance data sent successfully for deployment %s: %s", deploymentID, resp.ResponseMessage)
 	}
 
 	return nil
 }
 
-func (s *SetInstanceDataService) SetInstanceData(ctx context.Context, nodeID string, token string, jobID string, instanceID string) error {
-	log.Printf("[SetInstanceDataService] Setting instance data for job %s, instance %s", jobID, instanceID)
+func (s *SetInstanceDataService) SetInstanceData(ctx context.Context, nodeID string, token string, deploymentID string, instanceID string) error {
+	log.Printf("[SetInstanceDataService] Setting instance data for deployment %s, instance %s", deploymentID, instanceID)
 
 	instance, err := s.driver.InspectInstance(ctx, instanceID)
 	if err != nil {
@@ -94,7 +94,7 @@ func (s *SetInstanceDataService) SetInstanceData(ctx context.Context, nodeID str
 		ctx,
 		s.nodeID,
 		s.token,
-		jobID,
+		deploymentID,
 		instance,
 		time.Now().Unix(),
 	)

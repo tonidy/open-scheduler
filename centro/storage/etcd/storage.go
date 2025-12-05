@@ -13,13 +13,13 @@ import (
 )
 
 const (
-	nodesPrefix        = "/centro/nodes/"
-	jobQueuePrefix     = "/centro/jobs/queue/"
-	failJobQueuePrefix = "/centro/jobs/fail-queue/"
-	jobActivePrefix    = "/centro/jobs/active/"
-	jobHistoryPrefix   = "/centro/jobs/history/"
-	jobEventsPrefix    = "/centro/jobs/events/"
-	instanceDataPrefix = "/centro/jobs/instance_data/"
+	nodesPrefix              = "/centro/nodes/"
+	deploymentQueuePrefix     = "/centro/deployments/queue/"
+	failDeploymentQueuePrefix = "/centro/deployments/fail-queue/"
+	deploymentActivePrefix    = "/centro/deployments/active/"
+	deploymentHistoryPrefix   = "/centro/deployments/history/"
+	deploymentEventsPrefix    = "/centro/deployments/events/"
+	instanceDataPrefix        = "/centro/deployments/instance_data/"
 )
 
 type Storage struct {
@@ -40,13 +40,13 @@ func (n *NodeInfo) IsHealthy() bool {
 	return time.Since(n.LastHeartbeat) < 60*time.Second
 }
 
-type JobStatus struct {
-	Job       *pb.Job   `json:"job"`
-	NodeID    string    `json:"node_id"`
-	Status    string    `json:"status"`
-	Detail    string    `json:"detail"`
-	UpdatedAt time.Time `json:"updated_at"`
-	ClaimedAt time.Time `json:"claimed_at"`
+type DeploymentStatus struct {
+	Deployment *pb.Deployment `json:"deployment"`
+	NodeID     string         `json:"node_id"`
+	Status     string         `json:"status"`
+	Detail     string         `json:"detail"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	ClaimedAt  time.Time      `json:"claimed_at"`
 }
 
 func NewStorage(endpoints []string) (*Storage, error) {
@@ -118,90 +118,90 @@ func (s *Storage) GetAllNodes(ctx context.Context) (map[string]*NodeInfo, error)
 	return nodes, nil
 }
 
-func (s *Storage) EnqueueFailedJob(ctx context.Context, job *pb.Job) error {
-	data, err := json.Marshal(job)
+func (s *Storage) EnqueueFailedDeployment(ctx context.Context, deployment *pb.Deployment) error {
+	data, err := json.Marshal(deployment)
 	if err != nil {
-		return fmt.Errorf("failed to marshal job: %w", err)
+		return fmt.Errorf("failed to marshal deployment: %w", err)
 	}
 
-	key := fmt.Sprintf("%s%s", failJobQueuePrefix, job.JobId)
+	key := fmt.Sprintf("%s%s", failDeploymentQueuePrefix, deployment.DeploymentId)
 	_, err = s.client.Put(ctx, key, string(data))
 	if err != nil {
-		return fmt.Errorf("failed to enqueue failed job: %w", err)
+		return fmt.Errorf("failed to enqueue failed deployment: %w", err)
 	}
 
 	return nil
 }
 
-func (s *Storage) GetQueueJobs(ctx context.Context) ([]*pb.Job, error) {
-	resp, err := s.client.Get(ctx, jobQueuePrefix, clientv3.WithPrefix())
+func (s *Storage) GetQueueDeployments(ctx context.Context) ([]*pb.Deployment, error) {
+	resp, err := s.client.Get(ctx, deploymentQueuePrefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get queue jobs: %w", err)
+		return nil, fmt.Errorf("failed to get queue deployments: %w", err)
 	}
 
-	jobs := make([]*pb.Job, 0, len(resp.Kvs))
+	deployments := make([]*pb.Deployment, 0, len(resp.Kvs))
 	for _, kv := range resp.Kvs {
-		var job pb.Job
-		if err := json.Unmarshal(kv.Value, &job); err != nil {
-			log.Printf("Failed to unmarshal job: %v", err)
+		var deployment pb.Deployment
+		if err := json.Unmarshal(kv.Value, &deployment); err != nil {
+			log.Printf("Failed to unmarshal deployment: %v", err)
 			continue
 		}
-		jobs = append(jobs, &job)
+		deployments = append(deployments, &deployment)
 	}
-	return jobs, nil
+	return deployments, nil
 }
 
-func (s *Storage) DeleteFailedJob(ctx context.Context, jobID string) error {
-	// Use prefix delete to remove the failed job entry (which has a timestamp suffix)
-	keyPrefix := fmt.Sprintf("%s%s", failJobQueuePrefix, jobID)
+func (s *Storage) DeleteFailedDeployment(ctx context.Context, deploymentID string) error {
+	// Use prefix delete to remove the failed deployment entry (which has a timestamp suffix)
+	keyPrefix := fmt.Sprintf("%s%s", failDeploymentQueuePrefix, deploymentID)
 	_, err := s.client.Delete(ctx, keyPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return fmt.Errorf("failed to delete failed job: %w", err)
+		return fmt.Errorf("failed to delete failed deployment: %w", err)
 	}
 
 	return nil
 }
 
-func (s *Storage) EnqueueJob(ctx context.Context, job *pb.Job) error {
-	data, err := json.Marshal(job)
+func (s *Storage) EnqueueDeployment(ctx context.Context, deployment *pb.Deployment) error {
+	data, err := json.Marshal(deployment)
 	if err != nil {
-		return fmt.Errorf("failed to marshal job: %w", err)
+		return fmt.Errorf("failed to marshal deployment: %w", err)
 	}
 
-	key := fmt.Sprintf("%s%s", jobQueuePrefix, job.JobId)
+	key := fmt.Sprintf("%s%s", deploymentQueuePrefix, deployment.DeploymentId)
 	_, err = s.client.Put(ctx, key, string(data))
 	if err != nil {
-		return fmt.Errorf("failed to enqueue job: %w", err)
+		return fmt.Errorf("failed to enqueue deployment: %w", err)
 	}
 
 	return nil
 }
 
-func (s *Storage) DequeueJob(ctx context.Context) (*pb.Job, error) {
-	resp, err := s.client.Get(ctx, jobQueuePrefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend), clientv3.WithLimit(1))
+func (s *Storage) DequeueDeployment(ctx context.Context) (*pb.Deployment, error) {
+	resp, err := s.client.Get(ctx, deploymentQueuePrefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend), clientv3.WithLimit(1))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get job from queue: %w", err)
+		return nil, fmt.Errorf("failed to get deployment from queue: %w", err)
 	}
 
 	if len(resp.Kvs) == 0 {
 		return nil, nil
 	}
 
-	var job pb.Job
-	if err := json.Unmarshal(resp.Kvs[0].Value, &job); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	var deployment pb.Deployment
+	if err := json.Unmarshal(resp.Kvs[0].Value, &deployment); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal deployment: %w", err)
 	}
 
 	_, err = s.client.Delete(ctx, string(resp.Kvs[0].Key))
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete job from queue: %w", err)
+		return nil, fmt.Errorf("failed to delete deployment from queue: %w", err)
 	}
 
-	return &job, nil
+	return &deployment, nil
 }
 
 func (s *Storage) GetQueueLength(ctx context.Context) (int, error) {
-	resp, err := s.client.Get(ctx, jobQueuePrefix, clientv3.WithPrefix(), clientv3.WithCountOnly())
+	resp, err := s.client.Get(ctx, deploymentQueuePrefix, clientv3.WithPrefix(), clientv3.WithCountOnly())
 	if err != nil {
 		return 0, fmt.Errorf("failed to get queue length: %w", err)
 	}
@@ -209,16 +209,16 @@ func (s *Storage) GetQueueLength(ctx context.Context) (int, error) {
 	return int(resp.Count), nil
 }
 
-func (s *Storage) SaveJobActive(ctx context.Context, jobID string, status *JobStatus) error {
+func (s *Storage) SaveDeploymentActive(ctx context.Context, deploymentID string, status *DeploymentStatus) error {
 	data, err := json.Marshal(status)
 	if err != nil {
-		return fmt.Errorf("failed to marshal job status: %w", err)
+		return fmt.Errorf("failed to marshal deployment status: %w", err)
 	}
 
-	key := jobActivePrefix + jobID
+	key := deploymentActivePrefix + deploymentID
 	_, err = s.client.Put(ctx, key, string(data))
 	if err != nil {
-		return fmt.Errorf("failed to save active job: %w", err)
+		return fmt.Errorf("failed to save active deployment: %w", err)
 	}
 
 	return nil
@@ -239,7 +239,7 @@ func (s *Storage) GetListOfInstances(ctx context.Context) ([]InstanceItem, error
 		}
 
 		cleanInstance := InstanceItem{
-			JobID:        strings.TrimPrefix(string(kv.Key), instanceDataPrefix),
+			DeploymentID: strings.TrimPrefix(string(kv.Key), instanceDataPrefix),
 			InstanceName: rawInstance.InstanceName,
 			Status:       rawInstance.Status,
 			Created:      rawInstance.Created,
@@ -249,72 +249,72 @@ func (s *Storage) GetListOfInstances(ctx context.Context) ([]InstanceItem, error
 
 	return instances, nil
 }
-func (s *Storage) GetJobActive(ctx context.Context, jobID string) (*JobStatus, error) {
-	key := jobActivePrefix + jobID
+func (s *Storage) GetDeploymentActive(ctx context.Context, deploymentID string) (*DeploymentStatus, error) {
+	key := deploymentActivePrefix + deploymentID
 	resp, err := s.client.Get(ctx, key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get active job: %w", err)
+		return nil, fmt.Errorf("failed to get active deployment: %w", err)
 	}
 
 	if len(resp.Kvs) == 0 {
 		return nil, nil
 	}
 
-	var status JobStatus
+	var status DeploymentStatus
 	if err := json.Unmarshal(resp.Kvs[0].Value, &status); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal job status: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal deployment status: %w", err)
 	}
 
 	return &status, nil
 }
 
-func (s *Storage) DeleteJobActive(ctx context.Context, jobID string) error {
-	key := jobActivePrefix + jobID
+func (s *Storage) DeleteDeploymentActive(ctx context.Context, deploymentID string) error {
+	key := deploymentActivePrefix + deploymentID
 	_, err := s.client.Delete(ctx, key)
 	if err != nil {
-		return fmt.Errorf("failed to delete active job: %w", err)
+		return fmt.Errorf("failed to delete active deployment: %w", err)
 	}
 
 	return nil
 }
 
-func (s *Storage) GetAllActiveJobs(ctx context.Context) (map[string]*JobStatus, error) {
-	resp, err := s.client.Get(ctx, jobActivePrefix, clientv3.WithPrefix())
+func (s *Storage) GetAllActiveDeployments(ctx context.Context) (map[string]*DeploymentStatus, error) {
+	resp, err := s.client.Get(ctx, deploymentActivePrefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get active jobs: %w", err)
+		return nil, fmt.Errorf("failed to get active deployments: %w", err)
 	}
 
-	jobs := make(map[string]*JobStatus)
+	deployments := make(map[string]*DeploymentStatus)
 	for _, kv := range resp.Kvs {
-		var status JobStatus
+		var status DeploymentStatus
 		if err := json.Unmarshal(kv.Value, &status); err != nil {
-			log.Printf("Failed to unmarshal job status: %v", err)
+			log.Printf("Failed to unmarshal deployment status: %v", err)
 			continue
 		}
-		jobID := strings.TrimPrefix(string(kv.Key), jobActivePrefix)
-		jobs[jobID] = &status
+		deploymentID := strings.TrimPrefix(string(kv.Key), deploymentActivePrefix)
+		deployments[deploymentID] = &status
 	}
 
-	return jobs, nil
+	return deployments, nil
 }
 
-func (s *Storage) SaveJobHistory(ctx context.Context, jobID string, status *JobStatus) error {
+func (s *Storage) SaveDeploymentHistory(ctx context.Context, deploymentID string, status *DeploymentStatus) error {
 	data, err := json.Marshal(status)
 	if err != nil {
-		return fmt.Errorf("failed to marshal job status: %w", err)
+		return fmt.Errorf("failed to marshal deployment status: %w", err)
 	}
 
-	key := jobHistoryPrefix + jobID
+	key := deploymentHistoryPrefix + deploymentID
 	_, err = s.client.Put(ctx, key, string(data))
 	if err != nil {
-		return fmt.Errorf("failed to save job history: %w", err)
+		return fmt.Errorf("failed to save deployment history: %w", err)
 	}
 
 	return nil
 }
 
-func (s *Storage) GetJobHistoryCount(ctx context.Context) (int, error) {
-	resp, err := s.client.Get(ctx, jobHistoryPrefix, clientv3.WithPrefix(), clientv3.WithCountOnly())
+func (s *Storage) GetDeploymentHistoryCount(ctx context.Context) (int, error) {
+	resp, err := s.client.Get(ctx, deploymentHistoryPrefix, clientv3.WithPrefix(), clientv3.WithCountOnly())
 	if err != nil {
 		return 0, fmt.Errorf("failed to get history count: %w", err)
 	}
@@ -322,55 +322,55 @@ func (s *Storage) GetJobHistoryCount(ctx context.Context) (int, error) {
 	return int(resp.Count), nil
 }
 
-func (s *Storage) GetActiveJobCount(ctx context.Context) (int, error) {
-	resp, err := s.client.Get(ctx, jobActivePrefix, clientv3.WithPrefix(), clientv3.WithCountOnly())
+func (s *Storage) GetActiveDeploymentCount(ctx context.Context) (int, error) {
+	resp, err := s.client.Get(ctx, deploymentActivePrefix, clientv3.WithPrefix(), clientv3.WithCountOnly())
 	if err != nil {
-		return 0, fmt.Errorf("failed to get active job count: %w", err)
+		return 0, fmt.Errorf("failed to get active deployment count: %w", err)
 	}
 
 	return int(resp.Count), nil
 }
 
-func (s *Storage) GetAllJobHistory(ctx context.Context) (map[string]*JobStatus, error) {
-	resp, err := s.client.Get(ctx, jobHistoryPrefix, clientv3.WithPrefix())
+func (s *Storage) GetAllDeploymentHistory(ctx context.Context) (map[string]*DeploymentStatus, error) {
+	resp, err := s.client.Get(ctx, deploymentHistoryPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get job history: %w", err)
+		return nil, fmt.Errorf("failed to get deployment history: %w", err)
 	}
 
-	jobs := make(map[string]*JobStatus)
+	deployments := make(map[string]*DeploymentStatus)
 	for _, kv := range resp.Kvs {
-		var status JobStatus
+		var status DeploymentStatus
 		if err := json.Unmarshal(kv.Value, &status); err != nil {
-			log.Printf("Failed to unmarshal job history: %v", err)
+			log.Printf("Failed to unmarshal deployment history: %v", err)
 			continue
 		}
-		jobID := strings.TrimPrefix(string(kv.Key), jobHistoryPrefix)
-		jobs[jobID] = &status
+		deploymentID := strings.TrimPrefix(string(kv.Key), deploymentHistoryPrefix)
+		deployments[deploymentID] = &status
 	}
 
-	return jobs, nil
+	return deployments, nil
 }
 
-func (s *Storage) GetJobHistory(ctx context.Context, jobID string) (*JobStatus, error) {
-	key := jobHistoryPrefix + jobID
+func (s *Storage) GetDeploymentHistory(ctx context.Context, deploymentID string) (*DeploymentStatus, error) {
+	key := deploymentHistoryPrefix + deploymentID
 	resp, err := s.client.Get(ctx, key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get job history: %w", err)
+		return nil, fmt.Errorf("failed to get deployment history: %w", err)
 	}
 
 	if len(resp.Kvs) == 0 {
 		return nil, nil
 	}
 
-	var status JobStatus
+	var status DeploymentStatus
 	if err := json.Unmarshal(resp.Kvs[0].Value, &status); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal job history: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal deployment history: %w", err)
 	}
 
 	return &status, nil
 }
 
-func (s *Storage) SaveJobEvent(ctx context.Context, jobID string, event string) error {
+func (s *Storage) SaveDeploymentEvent(ctx context.Context, deploymentID string, event string) error {
 	// Remove timestamp (everything up to and including "] "), use the rest as the event message
 	getMessage := func(ev string) string {
 		if idx := strings.Index(ev, "] "); idx != -1 {
@@ -380,8 +380,8 @@ func (s *Storage) SaveJobEvent(ctx context.Context, jobID string, event string) 
 	}
 	newMsg := getMessage(event)
 
-	// Get the previous (most recent) event for this job, if any
-	prefix := jobEventsPrefix + jobID + "/"
+	// Get the previous (most recent) event for this deployment, if any
+	prefix := deploymentEventsPrefix + deploymentID + "/"
 	resp, err := s.client.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortDescend), clientv3.WithLimit(1))
 	if err == nil && len(resp.Kvs) > 0 {
 		prevMsg := getMessage(string(resp.Kvs[0].Value))
@@ -391,19 +391,19 @@ func (s *Storage) SaveJobEvent(ctx context.Context, jobID string, event string) 
 	}
 	// if error above, fail open: allow event
 
-	key := fmt.Sprintf("%s%s/%d", jobEventsPrefix, jobID, time.Now().UnixNano())
+	key := fmt.Sprintf("%s%s/%d", deploymentEventsPrefix, deploymentID, time.Now().UnixNano())
 	_, err = s.client.Put(ctx, key, event)
 	if err != nil {
-		return fmt.Errorf("failed to save job event: %w", err)
+		return fmt.Errorf("failed to save deployment event: %w", err)
 	}
 	return nil
 }
 
-func (s *Storage) GetJobEvents(ctx context.Context, jobID string) ([]string, error) {
-	prefix := jobEventsPrefix + jobID + "/"
+func (s *Storage) GetDeploymentEvents(ctx context.Context, deploymentID string) ([]string, error) {
+	prefix := deploymentEventsPrefix + deploymentID + "/"
 	resp, err := s.client.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get job events: %w", err)
+		return nil, fmt.Errorf("failed to get deployment events: %w", err)
 	}
 
 	events := make([]string, 0, len(resp.Kvs))
@@ -414,32 +414,32 @@ func (s *Storage) GetJobEvents(ctx context.Context, jobID string) ([]string, err
 	return events, nil
 }
 
-func (s *Storage) GetAllFailedJobs(ctx context.Context) (map[string]*pb.Job, error) {
-	resp, err := s.client.Get(ctx, failJobQueuePrefix, clientv3.WithPrefix())
+func (s *Storage) GetAllFailedDeployments(ctx context.Context) (map[string]*pb.Deployment, error) {
+	resp, err := s.client.Get(ctx, failDeploymentQueuePrefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all failed jobs: %w", err)
+		return nil, fmt.Errorf("failed to get all failed deployments: %w", err)
 	}
 
-	jobs := make(map[string]*pb.Job)
+	deployments := make(map[string]*pb.Deployment)
 	for _, kv := range resp.Kvs {
-		var job pb.Job
-		if err := json.Unmarshal(kv.Value, &job); err != nil {
-			log.Printf("Failed to unmarshal job: %v", err)
+		var deployment pb.Deployment
+		if err := json.Unmarshal(kv.Value, &deployment); err != nil {
+			log.Printf("Failed to unmarshal deployment: %v", err)
 			continue
 		}
-		jobs[job.JobId] = &job
+		deployments[deployment.DeploymentId] = &deployment
 	}
 
-	return jobs, nil
+	return deployments, nil
 }
 
-func (s *Storage) SaveInstanceData(ctx context.Context, jobID string, instanceData *pb.InstanceData) error {
+func (s *Storage) SaveInstanceData(ctx context.Context, deploymentID string, instanceData *pb.InstanceData) error {
 	data, err := json.Marshal(instanceData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal instance data: %w", err)
 	}
 
-	key := instanceDataPrefix + jobID
+	key := instanceDataPrefix + deploymentID
 	_, err = s.client.Put(ctx, key, string(data))
 	if err != nil {
 		return fmt.Errorf("failed to save instance data: %w", err)
@@ -447,8 +447,8 @@ func (s *Storage) SaveInstanceData(ctx context.Context, jobID string, instanceDa
 	return nil
 }
 
-func (s *Storage) GetInstanceData(ctx context.Context, jobID string) (*pb.InstanceData, error) {
-	key := instanceDataPrefix + jobID
+func (s *Storage) GetInstanceData(ctx context.Context, deploymentID string) (*pb.InstanceData, error) {
+	key := instanceDataPrefix + deploymentID
 	resp, err := s.client.Get(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get instance data: %w", err)
@@ -467,40 +467,40 @@ func (s *Storage) GetInstanceData(ctx context.Context, jobID string) (*pb.Instan
 }
 
 
-func (s *Storage) GetQueueJob(ctx context.Context, jobID string) (*pb.Job, error) {
-	key := jobQueuePrefix + jobID
+func (s *Storage) GetQueueDeployment(ctx context.Context, deploymentID string) (*pb.Deployment, error) {
+	key := deploymentQueuePrefix + deploymentID
 	resp, err := s.client.Get(ctx, key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get queue job: %w", err)
+		return nil, fmt.Errorf("failed to get queue deployment: %w", err)
 	}
 
 	if len(resp.Kvs) == 0 {
 		return nil, nil
 	}
 
-	var job pb.Job
-	if err := json.Unmarshal(resp.Kvs[0].Value, &job); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	var deployment pb.Deployment
+	if err := json.Unmarshal(resp.Kvs[0].Value, &deployment); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal deployment: %w", err)
 	}
 
-	return &job, nil
+	return &deployment, nil
 }
 
-func (s *Storage) GetFailedJob(ctx context.Context, jobID string) (*pb.Job, error) {
-	key := failJobQueuePrefix + jobID
+func (s *Storage) GetFailedDeployment(ctx context.Context, deploymentID string) (*pb.Deployment, error) {
+	key := failDeploymentQueuePrefix + deploymentID
 	resp, err := s.client.Get(ctx, key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get failed job: %w", err)
+		return nil, fmt.Errorf("failed to get failed deployment: %w", err)
 	}
 
 	if len(resp.Kvs) == 0 {
 		return nil, nil
 	}
 
-	var job pb.Job
-	if err := json.Unmarshal(resp.Kvs[0].Value, &job); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal job: %w", err)
+	var deployment pb.Deployment
+	if err := json.Unmarshal(resp.Kvs[0].Value, &deployment); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal deployment: %w", err)
 	}
 
-	return &job, nil
+	return &deployment, nil
 }

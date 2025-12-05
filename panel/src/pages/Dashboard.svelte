@@ -72,13 +72,13 @@
         </div>
       </Card>
 
-      <!-- Queued Jobs -->
+      <!-- Queued Deployments -->
       <Card class="hover:shadow-lg transition-shadow">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Queued Jobs</p>
+            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Queued Deployments</p>
             <p class="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">
-              {statsData.jobs?.queued || 0}
+              {statsData.deployments?.queued || 0}
             </p>
           </div>
           <div class="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
@@ -87,13 +87,13 @@
         </div>
       </Card>
 
-      <!-- Active Jobs -->
+      <!-- Active Deployments -->
       <Card class="hover:shadow-lg transition-shadow">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Active Jobs</p>
+            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Active Deployments</p>
             <p class="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-              {statsData.jobs?.active || 0}
+              {statsData.deployments?.active || 0}
             </p>
           </div>
           <div class="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
@@ -103,21 +103,21 @@
       </Card>
     </div>
 
-    <!-- Jobs Summary -->
+    <!-- Deployments Summary -->
     <Card>
-      <Heading tag="h3" class="text-xl font-semibold mb-4">Jobs Summary</Heading>
+      <Heading tag="h3" class="text-xl font-semibold mb-4">Deployments Summary</Heading>
       <div class="space-y-4">
         <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <span class="text-gray-700 dark:text-gray-300">Queued Jobs</span>
-          <Badge color="yellow" large>{statsData.jobs?.queued || 0}</Badge>
+          <span class="text-gray-700 dark:text-gray-300">Queued Deployments</span>
+          <Badge color="yellow" large>{statsData.deployments?.queued || 0}</Badge>
         </div>
         <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <span class="text-gray-700 dark:text-gray-300">Active Jobs</span>
-          <Badge color="purple" large>{statsData.jobs?.active || 0}</Badge>
+          <span class="text-gray-700 dark:text-gray-300">Active Deployments</span>
+          <Badge color="purple" large>{statsData.deployments?.active || 0}</Badge>
         </div>
         <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <span class="text-gray-700 dark:text-gray-300">Completed Jobs</span>
-          <Badge color="green" large>{statsData.jobs?.completed || 0}</Badge>
+          <span class="text-gray-700 dark:text-gray-300">Completed Deployments</span>
+          <Badge color="green" large>{statsData.deployments?.completed || 0}</Badge>
         </div>
       </div>
     </Card>

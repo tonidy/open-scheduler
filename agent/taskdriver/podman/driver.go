@@ -105,16 +105,16 @@ func NewPodmanDriver() *PodmanDriver {
 	}
 }
 
-func (d *PodmanDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
-	err := d.pullImage(ctx, job.InstanceConfig.ImageName)
+func (d *PodmanDriver) Run(ctx context.Context, deployment *pb.Deployment) (string, error) {
+	err := d.pullImage(ctx, deployment.InstanceConfig.ImageName)
 	if err != nil {
-		return "", fmt.Errorf("failed to pull image %s: %w", job.InstanceConfig.ImageName, err)
+		return "", fmt.Errorf("failed to pull image %s: %w", deployment.InstanceConfig.ImageName, err)
 	}
 
-	id, err := d.createInstance(ctx, job)
+	id, err := d.createInstance(ctx, deployment)
 	if err != nil {
-		return "", fmt.Errorf("failed to create instance %s: %w", job.InstanceConfig.ImageName, err)
-	}	
+		return "", fmt.Errorf("failed to create instance %s: %w", deployment.InstanceConfig.ImageName, err)
+	}
 
 	return id, nil
 }
@@ -128,58 +128,69 @@ func (d *PodmanDriver) pullImage(ctx context.Context, image string) error {
 	return nil
 }
 
-func (d *PodmanDriver) createInstance(ctx context.Context, job *pb.Job) (string, error) {
-	s := specgen.NewSpecGenerator(job.InstanceConfig.ImageName, false)
+func (d *PodmanDriver) createInstance(ctx context.Context, deployment *pb.Deployment) (string, error) {
+	s := specgen.NewSpecGenerator(deployment.InstanceConfig.ImageName, false)
 	s.Terminal = true
 
 	// Set command and args if specified
-	if len(job.InstanceConfig.Entrypoint) > 0 {
-		s.Command = job.InstanceConfig.Entrypoint
+	// Priority: command_array > InstanceConfig.Entrypoint > Command (legacy)
+	if len(deployment.CommandArray) > 0 {
+		s.Command = deployment.CommandArray
+	} else if len(deployment.InstanceConfig.Entrypoint) > 0 {
+		s.Command = deployment.InstanceConfig.Entrypoint
+	} else if deployment.Command != "" {
+		// Parse legacy string command
+		s.Command = []string{"sh", "-c", deployment.Command}
 	}
-	if len(job.InstanceConfig.Arguments) > 0 {
-		s.Command = append(s.Command, job.InstanceConfig.Arguments...)
+	if len(deployment.InstanceConfig.Arguments) > 0 {
+		s.Command = append(s.Command, deployment.InstanceConfig.Arguments...)
+	}
+
+	// Set working directory
+	if deployment.WorkingDir != "" {
+		s.WorkDir = deployment.WorkingDir
 	}
 
 	labels := make(map[string]string)
 	labels["open-scheduler.managed"] = "true"
-	labels["open-scheduler.job-name"] = job.JobName
-	labels["open-scheduler.job-id"] = job.JobId
+	labels["open-scheduler.deployment-name"] = deployment.DeploymentName
+	labels["open-scheduler.deployment-id"] = deployment.DeploymentId
 
 	s.Labels = labels
 
-	if len(job.EnvironmentVariables) > 0 {
+	if len(deployment.EnvironmentVariables) > 0 {
 		envVars := make(map[string]string)
-		for k, v := range job.EnvironmentVariables {
+		for k, v := range deployment.EnvironmentVariables {
 			envVars[k] = v
 		}
 		s.Env = envVars
 	}
 
 	// Set resource limits
-	if job.ResourceRequirements != nil {
+	if deployment.ResourceRequirements != nil {
 		// Memory limits (convert MB to bytes)
-		if job.ResourceRequirements.MemoryLimitMb > 0 {
-			memoryLimit := job.ResourceRequirements.MemoryLimitMb * 1024 * 1024
+		if deployment.ResourceRequirements.MemoryLimitMb > 0 {
+			memoryLimit := deployment.ResourceRequirements.MemoryLimitMb * 1024 * 1024
 			s.ResourceLimits = &spec.LinuxResources{}
 			s.ResourceLimits.Memory = &spec.LinuxMemory{
 				Limit: &memoryLimit,
 			}
 			// Set memory reservation if specified
-			if job.ResourceRequirements.MemoryReservedMb > 0 {
-				memoryReserve := job.ResourceRequirements.MemoryReservedMb * 1024 * 1024
+			if deployment.ResourceRequirements.MemoryReservedMb > 0 {
+				memoryReserve := deployment.ResourceRequirements.MemoryReservedMb * 1024 * 1024
 				s.ResourceLimits.Memory.Reservation = &memoryReserve
 			}
 		}
 
 		// CPU limits
-		if job.ResourceRequirements.CpuLimitCores > 0 {
+		if deployment.ResourceRequirements.CpuLimitCores > 0 {
 			if s.ResourceLimits == nil {
 				s.ResourceLimits = &spec.LinuxResources{}
 			}
 			// Convert CPU float to quota/period
 			// Default period is 100000 microseconds (0.1s)
 			period := uint64(100000)
-			quota := int64(job.ResourceRequirements.CpuLimitCores * float32(period))
+			quota := int64(deployment.ResourceRequirements.CpuLimitCores * float32(period))
 			s.ResourceLimits.CPU = &spec.LinuxCPU{
 				Quota:  &quota,
 				Period: &period,
@@ -188,10 +199,13 @@ func (d *PodmanDriver) createInstance(ctx context.Context, job *pb.Job) (string,
 	}
 
 	// Set volume mounts
-	if len(job.VolumeMounts) > 0 {
-		mounts := make([]spec.Mount, 0, len(job.VolumeMounts))
-		for _, vol := range job.VolumeMounts {
+	if len(deployment.VolumeMounts) > 0 {
+		mounts := make([]spec.Mount, 0, len(deployment.VolumeMounts))
+		for _, vol := range deployment.VolumeMounts {
 			mountType := "bind"
+			if vol.Type != "" {
+				mountType = vol.Type
+			}
 			mountOpts := []string{"rbind"}
 			if vol.ReadOnly {
 				mountOpts = append(mountOpts, "ro")
@@ -209,12 +223,22 @@ func (d *PodmanDriver) createInstance(ctx context.Context, job *pb.Job) (string,
 		s.Mounts = mounts
 	}
 
-	log.Printf("[PodmanDriver] Creating instance for job %s with image: %s", job.JobId, job.InstanceConfig.ImageName)
+	// Set security settings
+	if deployment.Security != nil {
+		s.Privileged = deployment.Security.Privileged
+		// Note: Capabilities handling would require additional Podman API calls
+		// This is a placeholder for future implementation
+		if deployment.Security.ReadOnlyRootFilesystem {
+			s.ReadOnlyFilesystem = true
+		}
+	}
+
+	log.Printf("[PodmanDriver] Creating instance for deployment %s with image: %s", deployment.DeploymentId, deployment.InstanceConfig.ImageName)
 	r, err := containers.CreateWithSpec(d.ctx, s, &containers.CreateOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to create instance: %w", err)
 	}
-	
+
 	log.Printf("[PodmanDriver] Starting instance: %s", r.ID)
 	err = containers.Start(d.ctx, r.ID, nil)
 	if err != nil {

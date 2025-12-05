@@ -76,6 +76,249 @@ const docTemplate = `{
                 }
             }
         },
+        "/deployments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a list of all deployments with optional status filter",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deployments"
+                ],
+                "summary": "List all deployments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by status (queued, pending, completed, failed)",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create and submit a new deployment to the scheduler",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deployments"
+                ],
+                "summary": "Submit a new deployment",
+                "parameters": [
+                    {
+                        "description": "Deployment details",
+                        "name": "deployment",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/rest.SubmitDeploymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/deployments/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get detailed information about a specific deployment",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deployments"
+                ],
+                "summary": "Get deployment details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Deployment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/deployments/{id}/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve events for a specific deployment",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deployments"
+                ],
+                "summary": "Get deployment events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Deployment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/deployments/{id}/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the current status of a specific deployment",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deployments"
+                ],
+                "summary": "Get deployment status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Deployment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/instances": {
             "get": {
                 "security": [
@@ -121,14 +364,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves the instance data associated with a specific job",
+                "description": "Retrieves the instance data associated with a specific deployment",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Instances"
                 ],
-                "summary": "Get instance data for a job",
+                "summary": "Get instance data for a deployment",
                 "parameters": [
                     {
                         "type": "string",
@@ -157,249 +400,6 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/jobs": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get a list of all jobs with optional status filter",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Jobs"
-                ],
-                "summary": "List all jobs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Filter by status (queued, pending, completed, failed)",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create and submit a new job to the scheduler",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Jobs"
-                ],
-                "summary": "Submit a new job",
-                "parameters": [
-                    {
-                        "description": "Job details",
-                        "name": "job",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/rest.SubmitJobRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/jobs/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get detailed information about a specific job",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Jobs"
-                ],
-                "summary": "Get job details",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Job ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/jobs/{id}/events": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve events for a specific job",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Jobs"
-                ],
-                "summary": "Get job events",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Job ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/jobs/{id}/status": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get the current status of a specific job",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Jobs"
-                ],
-                "summary": "Get job status",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Job ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -600,6 +600,73 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "rest.DeviceRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "eth0"
+                },
+                "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "example": "nic"
+                }
+            }
+        },
+        "rest.HealthCheckRequest": {
+            "type": "object",
+            "properties": {
+                "interval": {
+                    "type": "string",
+                    "example": "30s"
+                },
+                "retries": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "start_period": {
+                    "type": "string",
+                    "example": "5s"
+                },
+                "test": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "CMD-SHELL",
+                        "curl -f http://localhost/ || exit 1"
+                    ]
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "5s"
+                }
+            }
+        },
+        "rest.ImageSourceRequest": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string",
+                    "example": "ubuntu/22.04"
+                },
+                "mode": {
+                    "type": "string",
+                    "example": "pull"
+                },
+                "server": {
+                    "type": "string",
+                    "example": "images.linuxcontainers.org"
+                }
+            }
+        },
         "rest.InstanceSpecRequest": {
             "type": "object",
             "properties": {
@@ -621,15 +688,27 @@ const docTemplate = `{
                         ""
                     ]
                 },
+                "devices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rest.DeviceRequest"
+                    }
+                },
                 "image": {
                     "type": "string",
                     "example": "docker.io/library/alpine:latest"
+                },
+                "image_source": {
+                    "$ref": "#/definitions/rest.ImageSourceRequest"
                 },
                 "options": {
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "user_data": {
+                    "type": "string"
                 }
             }
         },
@@ -660,6 +739,42 @@ const docTemplate = `{
                 }
             }
         },
+        "rest.PlacementRequest": {
+            "type": "object",
+            "properties": {
+                "constraints": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "node.driver in [podman",
+                        " containerd]"
+                    ]
+                },
+                "strategy": {
+                    "type": "string",
+                    "example": "spread"
+                }
+            }
+        },
+        "rest.PortMappingRequest": {
+            "type": "object",
+            "properties": {
+                "container_port": {
+                    "type": "integer",
+                    "example": 80
+                },
+                "host_port": {
+                    "type": "integer",
+                    "example": 8080
+                },
+                "protocol": {
+                    "type": "string",
+                    "example": "tcp"
+                }
+            }
+        },
         "rest.ResourcesRequest": {
             "type": "object",
             "properties": {
@@ -681,31 +796,93 @@ const docTemplate = `{
                 }
             }
         },
-        "rest.SubmitJobRequest": {
+        "rest.RestartPolicyRequest": {
+            "type": "object",
+            "properties": {
+                "condition": {
+                    "type": "string",
+                    "example": "on-failure"
+                },
+                "max_attempts": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "rest.SecurityRequest": {
+            "type": "object",
+            "properties": {
+                "capabilities_add": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "NET_BIND_SERVICE"
+                    ]
+                },
+                "capabilities_drop": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "ALL"
+                    ]
+                },
+                "privileged": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "read_only_root_filesystem": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "rest.SubmitDeploymentRequest": {
             "type": "object",
             "properties": {
                 "command": {
                     "type": "string",
                     "example": "echo 'Hello World'"
                 },
+                "command_array": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "nginx",
+                        "-g",
+                        "daemon off;"
+                    ]
+                },
+                "deployment_id": {
+                    "type": "string",
+                    "example": "123"
+                },
+                "deployment_name": {
+                    "type": "string",
+                    "example": "web-server-deployment"
+                },
+                "deployment_type": {
+                    "type": "string",
+                    "example": "service"
+                },
                 "driver": {
                     "type": "string",
                     "example": "podman"
                 },
+                "health_check": {
+                    "$ref": "#/definitions/rest.HealthCheckRequest"
+                },
                 "instance_config": {
                     "$ref": "#/definitions/rest.InstanceSpecRequest"
                 },
-                "job_id": {
+                "instance_type": {
                     "type": "string",
-                    "example": "123"
-                },
-                "job_name": {
-                    "type": "string",
-                    "example": "web-server-job"
-                },
-                "job_type": {
-                    "type": "string",
-                    "example": "service"
+                    "example": "virtual-machine"
                 },
                 "meta": {
                     "type": "object",
@@ -713,8 +890,36 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "networks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "backend-net"
+                    ]
+                },
+                "placement": {
+                    "$ref": "#/definitions/rest.PlacementRequest"
+                },
+                "ports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rest.PortMappingRequest"
+                    }
+                },
+                "replicas": {
+                    "type": "integer",
+                    "example": 2
+                },
                 "resources": {
                     "$ref": "#/definitions/rest.ResourcesRequest"
+                },
+                "restart_policy": {
+                    "$ref": "#/definitions/rest.RestartPolicyRequest"
+                },
+                "security": {
+                    "$ref": "#/definitions/rest.SecurityRequest"
                 },
                 "selected_clusters": {
                     "type": "array",
@@ -731,6 +936,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/rest.VolumeRequest"
                     }
+                },
+                "working_dir": {
+                    "type": "string",
+                    "example": "/usr/share/nginx/html"
                 },
                 "workload_type": {
                     "type": "string",
@@ -752,6 +961,10 @@ const docTemplate = `{
                 "read_only": {
                     "type": "boolean",
                     "example": false
+                },
+                "type": {
+                    "type": "string",
+                    "example": "bind"
                 }
             }
         }

@@ -74,15 +74,15 @@ func NewContainerdDriver() *ContainerdDriver {
 	}
 }
 
-func (d *ContainerdDriver) Run(ctx context.Context, job *pb.Job) (string, error) {
-	err := d.pullImage(ctx, job.InstanceConfig.ImageName)
+func (d *ContainerdDriver) Run(ctx context.Context, deployment *pb.Deployment) (string, error) {
+	err := d.pullImage(ctx, deployment.InstanceConfig.ImageName)
 	if err != nil {
-		return "", fmt.Errorf("failed to pull image %s: %w", job.InstanceConfig.ImageName, err)
+		return "", fmt.Errorf("failed to pull image %s: %w", deployment.InstanceConfig.ImageName, err)
 	}
 
-	id, err := d.createInstance(ctx, job)
+	id, err := d.createInstance(ctx, deployment)
 	if err != nil {
-		return "", fmt.Errorf("failed to create instance %s: %w", job.InstanceConfig.ImageName, err)
+		return "", fmt.Errorf("failed to create instance %s: %w", deployment.InstanceConfig.ImageName, err)
 	}
 
 	return id, nil
@@ -98,15 +98,15 @@ func (d *ContainerdDriver) pullImage(ctx context.Context, image string) error {
 	return nil
 }
 
-func (d *ContainerdDriver) createInstance(ctx context.Context, job *pb.Job) (string, error) {
+func (d *ContainerdDriver) createInstance(ctx context.Context, deployment *pb.Deployment) (string, error) {
 	// Get image
-	image, err := d.client.GetImage(ctx, job.InstanceConfig.ImageName)
+	image, err := d.client.GetImage(ctx, deployment.InstanceConfig.ImageName)
 	if err != nil {
-		return "", fmt.Errorf("failed to get image %s: %w", job.InstanceConfig.ImageName, err)
+		return "", fmt.Errorf("failed to get image %s: %w", deployment.InstanceConfig.ImageName, err)
 	}
 
-	// Generate container ID from job ID
-	containerID := fmt.Sprintf("open-scheduler-%s", job.JobId)
+	// Generate container ID from deployment ID
+	containerID := fmt.Sprintf("open-scheduler-%s", deployment.DeploymentId)
 
 	// Create container spec
 	opts := []oci.SpecOpts{
@@ -115,32 +115,45 @@ func (d *ContainerdDriver) createInstance(ctx context.Context, job *pb.Job) (str
 	}
 
 	// Set command and args if specified
-	if len(job.InstanceConfig.Entrypoint) > 0 {
-		cmd := job.InstanceConfig.Entrypoint
-		if len(job.InstanceConfig.Arguments) > 0 {
-			cmd = append(cmd, job.InstanceConfig.Arguments...)
+	// Priority: command_array > InstanceConfig.Entrypoint > Command (legacy)
+	var cmd []string
+	if len(deployment.CommandArray) > 0 {
+		cmd = deployment.CommandArray
+	} else if len(deployment.InstanceConfig.Entrypoint) > 0 {
+		cmd = deployment.InstanceConfig.Entrypoint
+		if len(deployment.InstanceConfig.Arguments) > 0 {
+			cmd = append(cmd, deployment.InstanceConfig.Arguments...)
 		}
+	} else if deployment.Command != "" {
+		cmd = []string{"sh", "-c", deployment.Command}
+	}
+	if len(cmd) > 0 {
 		opts = append(opts, oci.WithProcessArgs(cmd...))
 	}
 
+	// Set working directory
+	if deployment.WorkingDir != "" {
+		opts = append(opts, oci.WithProcessCwd(deployment.WorkingDir))
+	}
+
 	// Set environment variables
-	if len(job.EnvironmentVariables) > 0 {
-		envVars := make([]string, 0, len(job.EnvironmentVariables))
-		for k, v := range job.EnvironmentVariables {
+	if len(deployment.EnvironmentVariables) > 0 {
+		envVars := make([]string, 0, len(deployment.EnvironmentVariables))
+		for k, v := range deployment.EnvironmentVariables {
 			envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
 		}
 		opts = append(opts, oci.WithEnv(envVars))
 	}
 
 	// Set resource limits
-	if job.ResourceRequirements != nil {
+	if deployment.ResourceRequirements != nil {
 		// Memory limits (convert MB to bytes)
-		if job.ResourceRequirements.MemoryLimitMb > 0 {
-			memoryLimit := int64(job.ResourceRequirements.MemoryLimitMb * 1024 * 1024)
+		if deployment.ResourceRequirements.MemoryLimitMb > 0 {
+			memoryLimit := int64(deployment.ResourceRequirements.MemoryLimitMb * 1024 * 1024)
 			opts = append(opts, oci.WithMemoryLimit(uint64(memoryLimit)))
 			// Set memory reservation if specified
-			if job.ResourceRequirements.MemoryReservedMb > 0 {
-				memoryReserve := int64(job.ResourceRequirements.MemoryReservedMb * 1024 * 1024)
+			if deployment.ResourceRequirements.MemoryReservedMb > 0 {
+				memoryReserve := int64(deployment.ResourceRequirements.MemoryReservedMb * 1024 * 1024)
 				opts = append(opts, func(_ context.Context, _ oci.Client, _ *containers.Container, s *specs.Spec) error {
 					if s.Linux == nil {
 						s.Linux = &specs.Linux{}
@@ -158,11 +171,11 @@ func (d *ContainerdDriver) createInstance(ctx context.Context, job *pb.Job) (str
 		}
 
 		// CPU limits
-		if job.ResourceRequirements.CpuLimitCores > 0 {
+		if deployment.ResourceRequirements.CpuLimitCores > 0 {
 			// Convert CPU cores to quota/period
 			// Default period is 100000 microseconds (0.1s)
 			period := uint64(100000)
-			quota := int64(job.ResourceRequirements.CpuLimitCores * float32(period))
+			quota := int64(deployment.ResourceRequirements.CpuLimitCores * float32(period))
 			opts = append(opts, func(_ context.Context, _ oci.Client, _ *containers.Container, s *specs.Spec) error {
 				if s.Linux == nil {
 					s.Linux = &specs.Linux{}
@@ -181,8 +194,8 @@ func (d *ContainerdDriver) createInstance(ctx context.Context, job *pb.Job) (str
 	}
 
 	// Set volume mounts
-	if len(job.VolumeMounts) > 0 {
-		for _, vol := range job.VolumeMounts {
+	if len(deployment.VolumeMounts) > 0 {
+		for _, vol := range deployment.VolumeMounts {
 			mountOpts := []string{"rbind"}
 			if vol.ReadOnly {
 				mountOpts = append(mountOpts, "ro")
@@ -214,11 +227,11 @@ func (d *ContainerdDriver) createInstance(ctx context.Context, job *pb.Job) (str
 		spec.Annotations = make(map[string]string)
 	}
 	spec.Annotations["open-scheduler.managed"] = "true"
-	spec.Annotations["open-scheduler.job-name"] = job.JobName
-	spec.Annotations["open-scheduler.job-id"] = job.JobId
+	spec.Annotations["open-scheduler.deployment-name"] = deployment.DeploymentName
+	spec.Annotations["open-scheduler.deployment-id"] = deployment.DeploymentId
 
 	// Create container
-	log.Printf("[ContainerdDriver] Creating container for job %s with image: %s", job.JobId, job.InstanceConfig.ImageName)
+	log.Printf("[ContainerdDriver] Creating container for deployment %s with image: %s", deployment.DeploymentId, deployment.InstanceConfig.ImageName)
 	container, err := d.client.NewContainer(
 		ctx,
 		containerID,

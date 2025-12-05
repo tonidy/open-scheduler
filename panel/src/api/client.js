@@ -48,21 +48,24 @@ export const auth = {
     }),
 };
 
-// Jobs
-export const jobs = {
+// Deployments
+export const deployments = {
   list: (status = '') => {
     const query = status ? `?status=${status}` : '';
-    return request(`/jobs${query}`);
+    return request(`/deployments${query}`);
   },
-  get: (id) => request(`/jobs/${id}`),
-  create: (jobData) =>
-    request('/jobs', {
+  get: (id) => request(`/deployments/${id}`),
+  create: (deploymentData) =>
+    request('/deployments', {
       method: 'POST',
-      body: JSON.stringify(jobData),
+      body: JSON.stringify(deploymentData),
     }),
-  getStatus: (id) => request(`/jobs/${id}/status`),
-  getEvents: (id) => request(`/jobs/${id}/events`),
+  getStatus: (id) => request(`/deployments/${id}/status`),
+  getEvents: (id) => request(`/deployments/${id}/events`),
 };
+
+// Legacy alias for backward compatibility (can be removed later)
+export const jobs = deployments;
 
 // Instances
 export const instances = {
